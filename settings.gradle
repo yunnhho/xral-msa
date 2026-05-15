@@ -1,0 +1,10 @@
+rootProject.name = 'xrail-msa'
+
+include 'common-lib'
+include 'discovery-server'
+include 'api-gateway'
+include 'auth-service'
+include 'train-service'
+include 'queue-service'
+include 'payment-service'
+include 'notification-service'
