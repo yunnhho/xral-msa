@@ -376,10 +376,10 @@
 
 | 단계 | 기간 | 산출물 | 핵심 검증 |
 |------|------|--------|----------|
-| **M0. 부트스트랩** | 3일 | xrail-msa Gradle 멀티모듈, docker-compose 인프라(8개 컨테이너), Eureka 기동 | 모든 인프라 healthy, Eureka 8761 응답 |
-| **M1. common-lib + auth-service** | 5일 | `common-lib` 완성, auth-service의 회원/비회원/JWT/OAuth2/리프레시 완전 동작 | curl로 가입·로그인·OAuth2 흐름 통과 |
-| **M2. api-gateway** | 4일 | JWT 검증 GlobalFilter, 헤더 주입, CORS, Bucket4j 레이트리미트, CAPTCHA stub | 인증 토큰 흐름 E2E 통과 |
-| **M3. train-service (코어 이식)** | 7일 | XRail의 모든 도메인(노선·스케줄·예약) 이식, Lua 비트마스크 보존, Idempotency-Key 추가, Saga 컨슈머 와이어링 | 단일 예약 흐름 + 100 스레드 동시 예약 무충돌 |
+| ✅ **M0. 부트스트랩** | 3일 | xrail-msa Gradle 멀티모듈, docker-compose 인프라(8개 컨테이너), Eureka 기동 | 모든 인프라 healthy, Eureka 8761 응답 |
+| ✅ **M1. common-lib + auth-service** | 5일 | `common-lib` 완성, auth-service의 회원/비회원/JWT/OAuth2/리프레시 완전 동작 | curl로 가입·로그인·OAuth2 흐름 통과 |
+| ✅ **M2. api-gateway** | 4일 | JWT 검증 GlobalFilter, 헤더 주입, CORS, Bucket4j 레이트리미트, CAPTCHA stub | 인증 토큰 흐름 E2E 통과 |
+| ✅ **M3. train-service (코어 이식)** | 7일 | XRail의 모든 도메인(노선·스케줄·예약) 이식, Lua 비트마스크 보존, Idempotency-Key 추가, Saga 컨슈머 와이어링 | 단일 예약 흐름 + 100 스레드 동시 예약 무충돌 |
 | **M4. queue-service** | 4일 | Sorted Set + 3초/100명 스케줄러 + SSE + polling fallback + 큐 토큰 HMAC | 1,000명 큐 등록 → 활성화 정상 |
 | **M5. payment-service** | 4일 | mock PG, Idempotency 버킷, `@Version`, DLT 처리 | saga happy path + 결제 실패 경로 통과 |
 | **M6. notification-service** | 2일 | 5개 템플릿, INAPP 채널, 멱등 처리 | 9개 이벤트 모두 알림 발생 확인 |
