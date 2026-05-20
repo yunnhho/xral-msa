@@ -1,0 +1,28 @@
+package com.xrail.payment.pg;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.util.UUID;
+
+@Slf4j
+@Component
+public class MockPaymentGateway implements PaymentGateway {
+
+    @Value("${payment.mock.always-fail:false}")
+    private boolean alwaysFail;
+
+    @Override
+    public PgResult charge(Long paymentId, Long amount, String method) {
+        // P3: always-fail 토글로 실패 시나리오 강제
+        boolean success = !alwaysFail && Math.random() >= 0.1; // 90% 성공
+        if (success) {
+            String txnId = "MOCK-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+            log.info("MockPG success paymentId={} txnId={}", paymentId, txnId);
+            return new PgResult(true, txnId, null);
+        }
+        log.info("MockPG failure paymentId={}", paymentId);
+        return new PgResult(false, null, "MOCK_FAILURE");
+    }
+}

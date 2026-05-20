@@ -24,11 +24,21 @@ spring:
           uri: lb://auth-service
           predicates:
             - Path=/api/auth/**, /oauth2/**, /login/oauth2/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: auth-service-cb
+                fallbackUri: forward:/fallback/auth-service
 
         - id: train-service
           uri: lb://train-service
           predicates:
             - Path=/api/stations/**, /api/schedules/**, /api/reservations/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: train-service-cb
+                fallbackUri: forward:/fallback/train-service
 
         - id: queue-service
           uri: lb://queue-service
@@ -36,16 +46,31 @@ spring:
             - Path=/api/queue/**
           metadata:
             response-timeout: 0
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: queue-service-cb
+                fallbackUri: forward:/fallback/queue-service
 
         - id: payment-service
           uri: lb://payment-service
           predicates:
             - Path=/api/payments/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: payment-service-cb
+                fallbackUri: forward:/fallback/payment-service
 
         - id: notification-service
           uri: lb://notification-service
           predicates:
             - Path=/api/notifications/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: notification-service-cb
+                fallbackUri: forward:/fallback/notification-service
 
   data:
     redis:
@@ -63,6 +88,34 @@ eureka:
 jwt:
   secret: ${JWT_SECRET}
   access-ttl-ms: ${JWT_ACCESS_TTL_MS:1800000}
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        registerHealthIndicator: true
+    instances:
+      auth-service-cb:
+        baseConfig: default
+      train-service-cb:
+        baseConfig: default
+      queue-service-cb:
+        baseConfig: default
+      payment-service-cb:
+        baseConfig: default
+      notification-service-cb:
+        baseConfig: default
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 5s
+    instances:
+      queue-service-cb:
+        timeoutDuration: 0s
 
 management:
   endpoints:
@@ -97,3 +150,8 @@ eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_DEFAULT_ZONE}
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans

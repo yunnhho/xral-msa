@@ -1,8 +1,10 @@
 package com.xrail.train.repository;
 
 import com.xrail.train.entity.Ticket;
+import com.xrail.train.entity.enums.TicketStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface TicketRepository extends JpaRepository<Ticket, Long> {
@@ -11,4 +13,6 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     boolean existsByScheduleIdAndSeatIdAndStartStationIdxLessThanAndEndStationIdxGreaterThan(
             Long scheduleId, Long seatId, int endIdx, int startIdx);
+
+    List<Ticket> findByScheduleIdAndSeatIdAndStatusIn(Long scheduleId, Long seatId, Collection<TicketStatus> statuses);
 }

@@ -98,4 +98,21 @@ public class TrainEventProducer {
         kafkaTemplate.send(Topics.SEAT_RELEASED, String.valueOf(reservation.getReservationId()), event);
         log.info("Published seat.released reservationId={} reason={}", reservation.getReservationId(), reason);
     }
+
+    public void publishSeatReleasedReconcile(Long scheduleId, Long seatId) {
+        SeatReleasedEvent event = new SeatReleasedEvent(
+                UUID.randomUUID().toString(),
+                Instant.now().toString(),
+                null,
+                null,
+                null,
+                scheduleId,
+                List.of(seatId),
+                null,
+                null,
+                "RECONCILE"
+        );
+        kafkaTemplate.send(Topics.SEAT_RELEASED, String.valueOf(scheduleId), event);
+        log.info("Published seat.released scheduleId={} seatId={} reason=RECONCILE", scheduleId, seatId);
+    }
 }

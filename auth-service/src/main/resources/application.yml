@@ -41,14 +41,15 @@ spring:
       client:
         registration:
           kakao:
-            client-id: ${KAKAO_CLIENT_ID}
-            client-secret: ${KAKAO_CLIENT_SECRET}
+            client-id: ${KAKAO_CLIENT_ID:dev-placeholder}
+            client-secret: ${KAKAO_CLIENT_SECRET:dev-placeholder}
+            client-authentication-method: client_secret_post
             redirect-uri: "{baseUrl}/login/oauth2/code/kakao"
             authorization-grant-type: authorization_code
             scope: profile_nickname, account_email
           naver:
-            client-id: ${NAVER_CLIENT_ID}
-            client-secret: ${NAVER_CLIENT_SECRET}
+            client-id: ${NAVER_CLIENT_ID:dev-placeholder}
+            client-secret: ${NAVER_CLIENT_SECRET:dev-placeholder}
             redirect-uri: "{baseUrl}/login/oauth2/code/naver"
             authorization-grant-type: authorization_code
             scope: name, email
@@ -75,6 +76,9 @@ jwt:
   secret: ${JWT_SECRET}
   access-ttl-ms: ${JWT_ACCESS_TTL_MS:1800000}
   refresh-ttl-ms: ${JWT_REFRESH_TTL_MS:1209600000}
+
+oauth:
+  success-redirect-uri: ${OAUTH_SUCCESS_REDIRECT:http://localhost:5173/oauth/callback}
 
 management:
   endpoints:
@@ -110,3 +114,8 @@ eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_DEFAULT_ZONE}
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans

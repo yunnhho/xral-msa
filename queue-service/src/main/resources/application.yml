@@ -29,6 +29,7 @@ queue:
   active-ttl-seconds: 600
   sse:
     heartbeat-seconds: 25
+    heartbeat-ms: 25000
 
 eureka:
   client:
@@ -65,3 +66,8 @@ eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_DEFAULT_ZONE}
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans
