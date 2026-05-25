@@ -15,10 +15,8 @@ dependencies {
     runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
     runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
 
-    // Rate Limiting
-    implementation "com.bucket4j:bucket4j-core:${bucket4jVersion}"
+    // Rate Limiting (Redis 기반)
     implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
-    implementation "com.bucket4j:bucket4j-redis:${bucket4jVersion}"
 
     // Circuit Breaker (reactive)
     implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j'

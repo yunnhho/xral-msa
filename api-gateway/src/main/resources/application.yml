@@ -115,7 +115,7 @@ resilience4j:
         timeoutDuration: 5s
     instances:
       queue-service-cb:
-        timeoutDuration: 0s
+        timeoutDuration: 600s
 
 management:
   endpoints:

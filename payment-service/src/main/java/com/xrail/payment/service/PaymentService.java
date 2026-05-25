@@ -13,7 +13,6 @@ import com.xrail.payment.entity.enums.PaymentStatus;
 import com.xrail.payment.pg.PaymentGateway;
 import com.xrail.payment.repository.PaymentRepository;
 import io.micrometer.core.instrument.MeterRegistry;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RBucket;
 import org.redisson.api.RLock;
@@ -21,7 +20,9 @@ import org.redisson.api.RedissonClient;
 import org.slf4j.MDC;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -31,7 +32,6 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PaymentService {
 
     private static final String IDEM_KEY_PREFIX = "payment:idem:";
@@ -42,13 +42,23 @@ public class PaymentService {
     private final RedissonClient redissonClient;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final MeterRegistry meterRegistry;
+    private final TransactionTemplate txTemplate;
+
+    public PaymentService(PaymentRepository paymentRepository, PaymentGateway paymentGateway,
+                          RedissonClient redissonClient, KafkaTemplate<String, Object> kafkaTemplate,
+                          MeterRegistry meterRegistry, PlatformTransactionManager txManager) {
+        this.paymentRepository = paymentRepository;
+        this.paymentGateway = paymentGateway;
+        this.redissonClient = redissonClient;
+        this.kafkaTemplate = kafkaTemplate;
+        this.meterRegistry = meterRegistry;
+        this.txTemplate = new TransactionTemplate(txManager);
+    }
 
     /**
-     * P1: Idempotency 버킷 흐름
-     * Redisson lock → Redis 상태 확인 → INSERT → Mock PG → UPDATE → Redis 상태 갱신
-     * @Transactional을 여기에 적용: lock 범위 내에서 트랜잭션 실행
+     * P1: lock 획득 → 트랜잭션 시작(txTemplate) → 처리 → 트랜잭션 커밋 → lock 해제.
+     * lock이 @Transactional 외부에 있어 DB 트랜잭션 범위를 벗어나지 않는다.
      */
-    @Transactional
     public PaymentResponse pay(Long userId, PaymentRequest request, String idempotencyKey) {
         String lockKey = LOCK_KEY_PREFIX + idempotencyKey;
         RLock lock = redissonClient.getLock(lockKey);
@@ -66,7 +76,9 @@ public class PaymentService {
         }
 
         try {
-            return processPayment(userId, request, idempotencyKey);
+            PaymentResponse result = txTemplate.execute(status -> processPayment(userId, request, idempotencyKey));
+            if (result == null) throw new BusinessException(ErrorCode.INTERNAL_ERROR);
+            return result;
         } finally {
             if (lock.isHeldByCurrentThread()) lock.unlock();
         }

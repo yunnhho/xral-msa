@@ -1,9 +1,14 @@
 package com.xrail.auth.controller;
 
 import com.xrail.auth.dto.*;
+import com.xrail.auth.security.JwtTokenProvider;
 import com.xrail.auth.service.AuthService;
 import com.xrail.common.dto.ApiResponse;
+import com.xrail.common.exception.BusinessException;
+import com.xrail.common.exception.ErrorCode;
 import com.xrail.common.header.Headers;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @PostMapping("/signup")
     @ResponseStatus(HttpStatus.CREATED)
@@ -36,8 +42,17 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ApiResponse<Void> logout(@RequestHeader(Headers.USER_ID) Long userId) {
-        authService.logout(userId);
+    public ApiResponse<Void> logout(@RequestHeader("Authorization") String authorization) {
+        if (!authorization.startsWith("Bearer ")) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
+        try {
+            Claims claims = jwtTokenProvider.parseAndValidate(authorization.substring(7));
+            Long userId = Long.parseLong(claims.getSubject());
+            authService.logout(userId);
+        } catch (JwtException | NumberFormatException e) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
         return ApiResponse.ok();
     }
 

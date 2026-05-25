@@ -1,13 +1,13 @@
 # XRail MSA — 세션 인수인계 컨텍스트
 
 > 이 파일을 다음 세션 시작 시 그대로 붙여넣으면 이전 세션의 맥락을 이어받아 작업할 수 있습니다.
-> 최종 갱신: 2026-05-19 (빌드 검증, QueueTokenInterceptor, M7 세션)
+> 최종 갱신: 2026-05-26 (버그/미완성 항목 일괄 수정 세션)
 
 ---
 
 ## 현재 상태 요약
 
-**진행: M0 ✅ → M1 ✅ → M2 ✅ → M3 ✅ → M4 ✅ → M5 ✅ → M6 ✅ → 빌드검증 ✅ → QueueTokenInterceptor ✅ → M7 ✅ → M8 ✅ → M9 ✅**
+**진행: M0 ✅ → M1 ✅ → M2 ✅ → M3 ✅ → M4 ✅ → M5 ✅ → M6 ✅ → 빌드검증 ✅ → QueueTokenInterceptor ✅ → M7 ✅ → M8 ✅ → M9 ✅ → 버그수정 ✅**
 
 이번 세션에서:
 1. **빌드 검증** — Gradle 8.10 wrapper 생성, 의존성 오류 4건 수정(invalid brave 좌표, Redisson `setIfAbsent` API, `java-library` 플러그인 누락, QueryDSL `QBaseTimeEntity` 생성 누락). 전체 7개 서비스 컴파일 성공.
@@ -97,23 +97,23 @@ NotificationDispatchedEvent(eventId, occurredAt, traceId, notificationId, userId
 
 ## 주의사항 / 알려진 미완성 부분
 
-1. **train-service IdempotencyInterceptor 미구현**: `ReservationService.create()`에서 직접 DB 조회로 처리 중.
+1. **train-service IdempotencyInterceptor** ✅ 수정: `IdempotencyInterceptor` 구현 (Redis SETNX 5분, 중복 시 DB 조회 후 기존 응답 반환, WebMvcConfig 등록).
 
-2. **auth-service `AuthController.logout()`**: Gateway 통과 후에만 작동. 직접 호출 시 400.
+2. **auth-service `AuthController.logout()`** ✅ 수정: `Authorization: Bearer` 헤더에서 JWT 파싱으로 userId 추출. Gateway PERMIT_PATTERNS에서 `/api/auth/**` 제외 경로 우회 문제 해결.
 
-3. **Gateway `RateLimitFilter`**: 인메모리 ConcurrentHashMap. 서버 재시작 시 버킷 초기화.
+3. **Gateway `RateLimitFilter`** ✅ 수정: ReactiveStringRedisTemplate + Lua 스크립트로 Redis 기반 고정 윈도우 레이트 리미팅. 재시작 후에도 상태 유지.
 
-4. **payment-service `@Transactional` 범위**: `pay()` 전체가 트랜잭션. Redisson lock 획득이 트랜잭션 내부. 허용 범위 (lock < 1초).
+4. **payment-service `@Transactional` 범위** ✅ 수정: TransactionTemplate으로 교체. Redisson lock 획득 → txTemplate.execute() → lock 해제 순서. DB 트랜잭션이 lock 범위 내부.
 
-5. **queue-service SSE 분산 미지원**: 단일 인스턴스 가정. 수평 확장 시 Redis pub/sub 필요.
+5. **queue-service SSE 분산** ✅ 수정: Redisson RTopic(`queue:sse:notify`) 기반 pub/sub 구현. `RedisQueueEventListener`가 구독, `QueueScheduler`가 발행. 수평 확장 가능.
 
-6. **notification-service `sendAsync`**: `@Async`로 채널 전송. `NotificationLog` save 중복 가능성 — N1 멱등으로 방어.
+6. **notification-service `sendAsync`** ✅ 수정: `@TransactionalEventListener(AFTER_COMMIT)` + `@Async` + `@Transactional(REQUIRES_NEW)` 패턴으로 교체. 트랜잭션 커밋 후 안전하게 채널 전송.
 
-7. **`ReservationCreatedEvent.scheduleId`**: `tickets.get(0).getScheduleId()`로 첫 티켓 사용. 단일 스케줄 가정.
+7. **`ReservationCreatedEvent.scheduleId`**: `tickets.get(0).getScheduleId()`로 첫 티켓 사용. 단일 스케줄 가정 — 비즈니스 요구사항과 일치하므로 변경 불필요.
 
-8. **Resilience4j `queue-service-cb` timelimiter**: `timeoutDuration: 0s`로 SSE 경로 무제한. Spring Cloud Gateway timelimiter에서 `0s`가 "무제한"으로 동작하지 않을 수 있음 — 운영 테스트 필요.
+8. **Resilience4j `queue-service-cb` timelimiter** ✅ 수정: `timeoutDuration: 0s` → `600s`로 변경. 0s는 즉시 타임아웃 발생 버그.
 
-9. **Grafana datasource UID**: 대시보드 JSON의 datasource uid가 `"prometheus"`. Grafana 인스턴스의 실제 uid와 다를 경우 Grafana UI에서 수동 연결 필요.
+9. **Grafana datasource UID** ✅ 수정: `datasource.yml`에 `uid: prometheus` 명시. 대시보드 JSON의 `"uid": "prometheus"` 참조와 일치.
 
 ---
 

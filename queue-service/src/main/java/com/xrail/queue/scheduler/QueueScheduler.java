@@ -1,9 +1,14 @@
 package com.xrail.queue.scheduler;
 
 import com.xrail.queue.service.QueueService;
+import com.xrail.queue.sse.RedisQueueEventListener;
 import com.xrail.queue.sse.SseEmitterRegistry;
+import com.xrail.queue.sse.SseNotificationMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RTopic;
+import org.redisson.api.RedissonClient;
+import org.redisson.codec.SerializationCodec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -25,6 +30,7 @@ public class QueueScheduler {
 
     private final QueueService queueService;
     private final SseEmitterRegistry emitterRegistry;
+    private final RedissonClient redissonClient;
 
     @Scheduled(fixedDelayString = "${queue.scheduler.delay-ms:3000}")
     public void tick() {
@@ -41,23 +47,40 @@ public class QueueScheduler {
 
     private void processScopePromotion(String scope) {
         List<Long> promoted = queueService.promoteTopN(scope, batchSize);
+        if (promoted.isEmpty()) return;
+
+        RTopic topic = redissonClient.getTopic(RedisQueueEventListener.TOPIC_NAME, new SerializationCodec());
         for (Long userId : promoted) {
             QueueService.QueueStatus status = queueService.getStatus(userId, scope);
-            // SSE: active 이벤트 전송
-            SseEmitter emitter = emitterRegistry.get(scope, userId);
-            if (emitter != null) {
-                try {
-                    emitter.send(SseEmitter.event()
-                            .name("active")
-                            .data(Map.of(
-                                    "queueToken", status.queueToken(),
-                                    "expiresAt", Instant.ofEpochMilli(status.expiresAt()).toString()
-                            )));
-                    emitter.complete();
-                } catch (IOException e) {
-                    emitterRegistry.remove(scope, userId);
+            Map<String, Object> data = Map.of(
+                    "queueToken", status.queueToken() != null ? status.queueToken() : "",
+                    "expiresAt", Instant.ofEpochMilli(status.expiresAt()).toString()
+            );
+            SseNotificationMessage msg = new SseNotificationMessage(scope, userId, "active", data);
+
+            // Q3: synchronous publish — 실패 시 예외가 발생하므로 catch 후 로컬 emitter로 fallback
+            try {
+                long subscribers = topic.publish(msg);
+                if (subscribers == 0) {
+                    // Redis pub/sub 구독자 없음(단일 인스턴스 등) → 로컬 emitter 직접 전송
+                    log.debug("No RTopic subscribers, falling back to local emitter userId={}", userId);
+                    sendToLocalEmitter(scope, userId, data);
                 }
+            } catch (Exception e) {
+                log.error("RTopic publish failed userId={}, falling back to local emitter", userId, e);
+                sendToLocalEmitter(scope, userId, data);
             }
+        }
+    }
+
+    private void sendToLocalEmitter(String scope, Long userId, Map<String, Object> data) {
+        SseEmitter emitter = emitterRegistry.get(scope, userId);
+        if (emitter == null) return;
+        try {
+            emitter.send(SseEmitter.event().name("active").data(data));
+            emitter.complete();
+        } catch (IOException e) {
+            emitterRegistry.remove(scope, userId);
         }
     }
 
