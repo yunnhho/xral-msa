@@ -45,7 +45,7 @@ public class AuthService {
         return new MeResponse(member.getUserId(), member.getName(), member.getEmail(), member.getRole().name());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public LoginResponse login(LoginRequest request, HttpServletRequest httpRequest) {
         Member member = memberRepository.findByEmail(request.email())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));

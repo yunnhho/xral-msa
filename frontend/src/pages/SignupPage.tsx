@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import client from '../api/client'
-import { useAuth } from '../contexts/AuthContext'
-import type { ApiResponse, TokenPair } from '../types/api'
+import type { ApiResponse } from '../types/api'
 
 export default function SignupPage() {
-  const { login } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ loginId: '', password: '', name: '', email: '', phone: '', birthDate: '' })
+  const [form, setForm] = useState({ email: '', password: '', name: '', phone: '', birthDate: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -16,11 +14,8 @@ export default function SignupPage() {
     setError('')
     setLoading(true)
     try {
-      const { data } = await client.post<ApiResponse<TokenPair>>('/api/auth/signup', form)
-      if (data.data) {
-        login(data.data)
-        navigate('/home')
-      }
+      await client.post<ApiResponse<unknown>>('/api/auth/signup', form)
+      navigate('/login', { state: { signupSuccess: true } })
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: ApiResponse<unknown> } })?.response?.data?.message
       setError(msg ?? '회원가입에 실패했습니다.')
@@ -48,10 +43,9 @@ export default function SignupPage() {
       <form onSubmit={handleSubmit} style={styles.card}>
         <h2>회원가입</h2>
         {error && <p style={styles.error}>{error}</p>}
-        {field('아이디 (5~20자 영문+숫자)', 'loginId', 'text', 'alice123')}
+        {field('이메일', 'email', 'email', 'alice@example.com')}
         {field('비밀번호 (8자 이상, 영문/숫자/특수문자)', 'password', 'password')}
         {field('이름', 'name')}
-        {field('이메일', 'email', 'email')}
         {field('휴대폰 (01012345678)', 'phone', 'tel')}
         {field('생년월일 (YYYYMMDD)', 'birthDate', 'text', '19900101')}
         <button type="submit" disabled={loading} style={styles.btn}>

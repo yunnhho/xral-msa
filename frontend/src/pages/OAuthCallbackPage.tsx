@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { setRefreshToken } from '../api/client'
+import { setAccessToken, setRefreshToken } from '../api/client'
+import client from '../api/client'
+import type { ApiResponse, MeResponse } from '../types/api'
 
 export default function OAuthCallbackPage() {
   const [params] = useSearchParams()
@@ -15,19 +17,16 @@ export default function OAuthCallbackPage() {
       navigate('/login')
       return
     }
-    // We don't have user info from query params — store tokens and redirect.
-    // The AuthProvider will reissue and populate user on next mount.
+    setAccessToken(accessToken)
     setRefreshToken(refreshToken)
-    // Construct a minimal pair to trigger login state (reissue will correct it)
-    login({
-      accessToken,
-      refreshToken,
-      tokenType: 'Bearer',
-      accessExpiresIn: 1800,
-      refreshExpiresIn: 1209600,
-      user: { userId: 0, name: '', role: 'ROLE_MEMBER' },
-    })
-    navigate('/home')
+    client.get<ApiResponse<MeResponse>>('/api/auth/me')
+      .then(({ data }) => {
+        if (data.data) {
+          login({ userId: data.data.userId, name: data.data.name, role: data.data.role, accessToken, refreshToken })
+        }
+      })
+      .catch(() => {})
+      .finally(() => navigate('/home'))
   }, [params, login, navigate])
 
   return <div style={{ textAlign: 'center', marginTop: 100 }}>OAuth 처리 중...</div>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import client from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
 import type { ApiResponse, TokenPair } from '../types/api'
@@ -7,7 +7,9 @@ import type { ApiResponse, TokenPair } from '../types/api'
 export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ loginId: '', password: '' })
+  const location = useLocation()
+  const signupSuccess = (location.state as { signupSuccess?: boolean } | null)?.signupSuccess
+  const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -33,11 +35,13 @@ export default function LoginPage() {
     <div style={styles.center}>
       <form onSubmit={handleSubmit} style={styles.card}>
         <h2>XRail 로그인</h2>
+        {signupSuccess && <p style={styles.success}>회원가입이 완료되었습니다. 로그인해주세요.</p>}
         {error && <p style={styles.error}>{error}</p>}
-        <label>아이디</label>
+        <label>이메일</label>
         <input
-          value={form.loginId}
-          onChange={(e) => setForm({ ...form, loginId: e.target.value })}
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
           required
           style={styles.input}
         />
@@ -77,5 +81,6 @@ const styles = {
   input: { padding: '8px 10px', borderRadius: 4, border: '1px solid #ccc', fontSize: 14 } as React.CSSProperties,
   btn: { padding: '10px', background: '#1a73e8', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 15 } as React.CSSProperties,
   error: { color: '#d32f2f', fontSize: 13 } as React.CSSProperties,
+  success: { color: '#2e7d32', fontSize: 13, background: '#e8f5e9', padding: '6px 10px', borderRadius: 4 } as React.CSSProperties,
   oauthBtn: (bg: string) => ({ display: 'block', margin: '6px 0', padding: '8px', background: bg, borderRadius: 4, textAlign: 'center' as const, textDecoration: 'none', color: '#000', fontSize: 14 }),
 }

@@ -5,6 +5,8 @@ import com.xrail.common.header.Headers;
 import com.xrail.queue.dto.QueueEnterRequest;
 import com.xrail.queue.service.QueueService;
 import com.xrail.queue.sse.SseEmitterRegistry;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +19,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 
+@Tag(name = "Queue", description = "대기열 진입·상태 조회·SSE 구독 API")
 @Slf4j
 @RestController
 @RequestMapping("/api/queue")
@@ -26,7 +29,8 @@ public class QueueController {
     private final QueueService queueService;
     private final SseEmitterRegistry emitterRegistry;
 
-    /** POST /api/queue/token — 대기열 진입 (캡차는 Gateway에서 선처리) */
+    @Operation(summary = "대기열 진입",
+               description = "대기열에 진입. 즉시 ACTIVE이면 Queue-Token 반환, 대기 중이면 순위(rank)/예상 대기시간 반환.")
     @PostMapping("/token")
     public ResponseEntity<ApiResponse<Object>> enter(
             @RequestHeader(Headers.USER_ID) Long userId,
@@ -51,7 +55,8 @@ public class QueueController {
         )));
     }
 
-    /** GET /api/queue/status — 폴링 fallback */
+    @Operation(summary = "대기열 상태 폴링",
+               description = "SSE를 사용할 수 없는 클라이언트를 위한 폴링 fallback. 2회 SSE 실패 시 전환.")
     @GetMapping("/status")
     public ResponseEntity<ApiResponse<Object>> status(
             @RequestHeader(Headers.USER_ID) Long userId,
@@ -75,7 +80,8 @@ public class QueueController {
         )));
     }
 
-    /** GET /api/queue/subscribe — SSE 구독 */
+    @Operation(summary = "SSE 구독",
+               description = "Server-Sent Events로 실시간 순위 변동 수신. 최대 10분. ACTIVE 이벤트 수신 시 연결 종료.")
     @GetMapping(value = "/subscribe", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribe(
             @RequestHeader(Headers.USER_ID) Long userId,
@@ -88,7 +94,6 @@ public class QueueController {
         emitter.onTimeout(() -> emitterRegistry.remove(scope, userId));
         emitter.onError(e -> emitterRegistry.remove(scope, userId));
 
-        // 초기 rank 이벤트 즉시 전송
         QueueService.QueueStatus current = queueService.getStatus(userId, scope);
         try {
             if ("ACTIVE".equals(current.status())) {
@@ -115,7 +120,7 @@ public class QueueController {
         return emitter;
     }
 
-    /** DELETE /api/queue/leave */
+    @Operation(summary = "대기열 이탈", description = "대기열에서 자발적으로 이탈. Redis 대기 목록에서 제거.")
     @DeleteMapping("/leave")
     public ResponseEntity<Void> leave(
             @RequestHeader(Headers.USER_ID) Long userId,

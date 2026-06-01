@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback((pair: TokenPair) => {
     setAccessToken(pair.accessToken)
     setRefreshToken(pair.refreshToken)
-    setUser(pair.user)
+    setUser({ userId: pair.userId, name: pair.name, role: pair.role })
   }, [])
 
   const logout = useCallback(async () => {
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     client
-      .post<ApiResponse<TokenPair>>('/api/auth/reissue', { refreshToken: rt })
+      .post<ApiResponse<TokenPair>>('/api/auth/refresh', { refreshToken: rt })
       .then(({ data }) => {
         if (data.data) login(data.data)
       })

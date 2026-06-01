@@ -33,12 +33,8 @@ public class CaptchaStubFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        String captchaToken = exchange.getRequest().getHeaders().getFirst(Headers.CAPTCHA_TOKEN);
-        if (!VALID_STUB.equals(captchaToken)) {
-            log.warn("CAPTCHA verification failed for path={}", path);
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
-        }
+        // Q7: 1차 stub 모드는 항상 통과 (실제 검증은 captcha.mode=real 시 구현)
+        log.debug("CAPTCHA stub passed for path={}", path);
         return chain.filter(exchange);
     }
 

@@ -68,7 +68,7 @@ client.interceptors.response.use(
       isRefreshing = true
       try {
         const { data } = await axios.post<ApiResponse<TokenPair>>(
-          '/api/auth/reissue',
+          '/api/auth/refresh',
           { refreshToken },
         )
         const newAccess = data.data!.accessToken

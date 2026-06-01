@@ -14,14 +14,20 @@ export interface PageResponse<T> {
   totalPages: number
 }
 
-// Auth
+// Auth — matches backend LoginResponse (flat structure)
 export interface TokenPair {
+  userId: number
+  name: string
+  role: string
   accessToken: string
   refreshToken: string
-  tokenType: string
-  accessExpiresIn: number
-  refreshExpiresIn: number
-  user: { userId: number; name: string; role: string }
+}
+
+export interface MeResponse {
+  userId: number
+  name: string
+  email: string
+  role: string
 }
 
 export interface GuestRegisterResponse {

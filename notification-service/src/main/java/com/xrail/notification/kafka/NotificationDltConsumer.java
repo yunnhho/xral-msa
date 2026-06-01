@@ -1,8 +1,8 @@
-package com.xrail.payment.kafka;
+package com.xrail.notification.kafka;
 
 import com.xrail.common.kafka.Topics;
-import com.xrail.payment.entity.DltAlertLog;
-import com.xrail.payment.repository.DltAlertLogRepository;
+import com.xrail.notification.entity.DltAlertLog;
+import com.xrail.notification.repository.DltAlertLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -10,21 +10,30 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * P5: payment.completed.DLT 격리 핸들러.
- * train-service 컨슈머가 처리 실패하면 이 토픽으로 격리.
+ * N1: DLT 격리 핸들러. 6개 구독 토픽의 DLT 메시지를 처리.
  * 예외를 throw하지 않는다 — DLT에서 또 실패하면 무한 루프.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class PaymentDltConsumer {
+public class NotificationDltConsumer {
 
     private final DltAlertLogRepository dltAlertLogRepository;
 
-    @KafkaListener(topics = Topics.PAYMENT_COMPLETED_DLT, groupId = "payment-dlt-service")
+    @KafkaListener(
+            topics = {
+                Topics.USER_SIGNED_UP_DLT,
+                Topics.RESERVATION_CREATED_DLT,
+                Topics.PAYMENT_COMPLETED_DLT,
+                Topics.PAYMENT_FAILED_DLT,
+                Topics.SEAT_CONFIRMED_DLT,
+                Topics.SEAT_RELEASED_DLT
+            },
+            groupId = "notification-dlt-service"
+    )
     public void handleDlt(ConsumerRecord<String, Object> record) {
         String errorMessage = extractDltErrorHeader(record);
-        log.error("[DLT][payment-service] payment.completed 처리 실패. topic={} partition={} offset={} key={} error={}",
+        log.error("[DLT][notification-service] 알림 처리 실패. topic={} partition={} offset={} key={} error={}",
                 record.topic(), record.partition(), record.offset(), record.key(), errorMessage);
 
         try {
@@ -37,7 +46,7 @@ public class PaymentDltConsumer {
                     .errorMessage(errorMessage)
                     .build());
         } catch (Exception e) {
-            log.error("[DLT][payment-service] DltAlertLog 저장 실패. topic={}", record.topic(), e);
+            log.error("[DLT][notification-service] DltAlertLog 저장 실패. topic={}", record.topic(), e);
         }
     }
 
