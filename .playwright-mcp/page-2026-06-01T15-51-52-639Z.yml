@@ -1,0 +1,70 @@
+- generic [ref=e176]:
+  - generic [ref=e177]:
+    - heading "내 예매 내역" [level=2] [ref=e178]
+    - button "← 홈으로" [ref=e179] [cursor=pointer]
+  - generic [ref=e180]:
+    - generic [ref=e181]:
+      - generic [ref=e182]: "예약 #7"
+      - generic [ref=e183]: 결제 대기
+    - generic [ref=e184]:
+      - generic [ref=e185]: "좌석: 1A"
+      - generic [ref=e186]: "금액: 30,000원"
+      - generic [ref=e187]: "예약일: 2026. 6. 2. 오전 12:33:58"
+      - generic [ref=e188]: "만료: 2026. 6. 2. 오전 12:53:58"
+    - button "예약 취소" [ref=e189] [cursor=pointer]
+    - button "결제하기" [ref=e190] [cursor=pointer]
+  - generic [ref=e191]:
+    - generic [ref=e192]:
+      - generic [ref=e193]: "예약 #8"
+      - generic [ref=e194]: 결제 대기
+    - generic [ref=e195]:
+      - generic [ref=e196]: "좌석: 2A"
+      - generic [ref=e197]: "금액: 30,000원"
+      - generic [ref=e198]: "예약일: 2026. 6. 2. 오전 12:34:36"
+      - generic [ref=e199]: "만료: 2026. 6. 2. 오전 12:54:36"
+    - button "예약 취소" [ref=e200] [cursor=pointer]
+    - button "결제하기" [ref=e201] [cursor=pointer]
+  - generic [ref=e202]:
+    - generic [ref=e203]:
+      - generic [ref=e204]: "예약 #9"
+      - generic [ref=e205]: 결제 대기
+    - generic [ref=e206]:
+      - generic [ref=e207]: "좌석: 10A"
+      - generic [ref=e208]: "금액: 30,000원"
+      - generic [ref=e209]: "예약일: 2026. 6. 2. 오전 12:36:20"
+      - generic [ref=e210]: "만료: 2026. 6. 2. 오전 12:56:20"
+    - button "예약 취소" [ref=e211] [cursor=pointer]
+    - button "결제하기" [ref=e212] [cursor=pointer]
+  - generic [ref=e213]:
+    - generic [ref=e214]:
+      - generic [ref=e215]: "예약 #10"
+      - generic [ref=e216]: 결제 대기
+    - generic [ref=e217]:
+      - generic [ref=e218]: "좌석: 10B"
+      - generic [ref=e219]: "금액: 30,000원"
+      - generic [ref=e220]: "예약일: 2026. 6. 2. 오전 12:37:47"
+      - generic [ref=e221]: "만료: 2026. 6. 2. 오전 12:57:47"
+    - button "예약 취소" [ref=e222] [cursor=pointer]
+    - button "결제하기" [ref=e223] [cursor=pointer]
+  - generic [ref=e224]:
+    - generic [ref=e225]:
+      - generic [ref=e226]: "예약 #11"
+      - generic [ref=e227]: 결제 대기
+    - generic [ref=e228]:
+      - generic [ref=e229]: "좌석: 10C"
+      - generic [ref=e230]: "금액: 30,000원"
+      - generic [ref=e231]: "예약일: 2026. 6. 2. 오전 12:44:04"
+      - generic [ref=e232]: "만료: 2026. 6. 2. 오전 1:04:04"
+    - button "예약 취소" [ref=e233] [cursor=pointer]
+    - button "결제하기" [ref=e234] [cursor=pointer]
+  - generic [ref=e235]:
+    - generic [ref=e236]:
+      - generic [ref=e237]: "예약 #12"
+      - generic [ref=e238]: 결제 대기
+    - generic [ref=e239]:
+      - generic [ref=e240]: "좌석: 10D"
+      - generic [ref=e241]: "금액: 30,000원"
+      - generic [ref=e242]: "예약일: 2026. 6. 2. 오전 12:50:46"
+      - generic [ref=e243]: "만료: 2026. 6. 2. 오전 1:10:46"
+    - button "예약 취소" [ref=e244] [cursor=pointer]
+    - button "결제하기" [ref=e245] [cursor=pointer]

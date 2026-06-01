@@ -1,0 +1,122 @@
+- generic [ref=e169]:
+  - banner [ref=e170]:
+    - generic [ref=e171]:
+      - button "XRail 승차권 예매" [ref=e172] [cursor=pointer]:
+        - generic [ref=e173]: XRail
+        - generic [ref=e174]: 승차권 예매
+      - navigation [ref=e175]:
+        - button "기차 예매" [ref=e176] [cursor=pointer]
+        - button "예매 내역" [ref=e177] [cursor=pointer]
+      - generic [ref=e178]:
+        - generic [ref=e179]: 테스터님
+        - button "로그아웃" [ref=e180] [cursor=pointer]
+  - generic [ref=e182]:
+    - generic [ref=e184]:
+      - generic [ref=e185]: ✓
+      - generic [ref=e186]: 열차 선택
+    - generic [ref=e189]:
+      - generic [ref=e190]: ✓
+      - generic [ref=e191]: 예매 대기
+    - generic [ref=e194]:
+      - generic [ref=e195]: "3"
+      - generic [ref=e196]: 좌석 선택
+    - generic [ref=e199]:
+      - generic [ref=e200]: "4"
+      - generic [ref=e201]: 결제
+  - generic [ref=e203]:
+    - generic [ref=e204]: KTX
+    - generic [ref=e205]: 08:00
+    - generic [ref=e206]: 서울
+    - generic [ref=e207]: →
+    - generic [ref=e208]: 10:30
+    - generic [ref=e209]: 부산
+    - generic [ref=e210]: "|"
+    - generic [ref=e211]: 2026-06-01
+    - generic [ref=e212]: 1명 예매
+  - generic [ref=e213]:
+    - generic [ref=e215]:
+      - generic [ref=e216]:
+        - button "1호차" [ref=e217] [cursor=pointer]
+        - button "2호차" [ref=e218] [cursor=pointer]
+      - generic [ref=e219]:
+        - generic [ref=e220]:
+          - generic [ref=e223]: 선택 가능
+          - generic [ref=e226]: 선택됨
+          - generic [ref=e229]: 이미 예약됨
+        - generic [ref=e230]:
+          - generic [ref=e231]:
+            - generic [ref=e233]: A
+            - generic [ref=e234]: B
+            - generic [ref=e236]: C
+            - generic [ref=e237]: D
+          - generic [ref=e238]:
+            - generic [ref=e239]: "1"
+            - button "1A" [ref=e240] [cursor=pointer]
+            - button "1B" [ref=e241] [cursor=pointer]
+            - button "1C" [ref=e243] [cursor=pointer]
+            - button "1D" [ref=e244] [cursor=pointer]
+          - generic [ref=e245]:
+            - generic [ref=e246]: "2"
+            - button "2A" [ref=e247] [cursor=pointer]
+            - button "2B" [ref=e248] [cursor=pointer]
+            - button "2C" [ref=e250] [cursor=pointer]
+            - button "2D" [ref=e251] [cursor=pointer]
+          - generic [ref=e252]:
+            - generic [ref=e253]: "3"
+            - button "3A" [ref=e254] [cursor=pointer]
+            - button "3B" [ref=e255] [cursor=pointer]
+            - button "3C" [ref=e257] [cursor=pointer]
+            - button "3D" [ref=e258] [cursor=pointer]
+          - generic [ref=e259]:
+            - generic [ref=e260]: "4"
+            - button "4A" [ref=e261] [cursor=pointer]
+            - button "4B" [ref=e262] [cursor=pointer]
+            - button "4C" [ref=e264] [cursor=pointer]
+            - button "4D" [ref=e265] [cursor=pointer]
+          - generic [ref=e266]:
+            - generic [ref=e267]: "5"
+            - button "5A" [disabled] [ref=e268]
+            - button "5B" [ref=e269] [cursor=pointer]
+            - button "5C" [ref=e271] [cursor=pointer]
+            - button "5D" [ref=e272] [cursor=pointer]
+          - generic [ref=e273]:
+            - generic [ref=e274]: "6"
+            - button "6A" [ref=e275] [cursor=pointer]
+            - button "6B" [ref=e276] [cursor=pointer]
+            - button "6C" [ref=e278] [cursor=pointer]
+            - button "6D" [ref=e279] [cursor=pointer]
+          - generic [ref=e280]:
+            - generic [ref=e281]: "7"
+            - button "7A" [ref=e282] [cursor=pointer]
+            - button "7B" [ref=e283] [cursor=pointer]
+            - button "7C" [ref=e285] [cursor=pointer]
+            - button "7D" [ref=e286] [cursor=pointer]
+          - generic [ref=e287]:
+            - generic [ref=e288]: "8"
+            - button "8A" [ref=e289] [cursor=pointer]
+            - button "8B" [ref=e290] [cursor=pointer]
+            - button "8C" [disabled] [ref=e292]
+            - button "8D" [ref=e293] [cursor=pointer]
+          - generic [ref=e294]:
+            - generic [ref=e295]: "9"
+            - button "9A" [ref=e296] [cursor=pointer]
+            - button "9B" [ref=e297] [cursor=pointer]
+            - button "9C" [ref=e299] [cursor=pointer]
+            - button "9D" [ref=e300] [cursor=pointer]
+          - generic [ref=e301]:
+            - generic [ref=e302]: "10"
+            - button "10A" [ref=e303] [cursor=pointer]
+            - button "10B" [ref=e304] [cursor=pointer]
+            - button "10C" [ref=e306] [cursor=pointer]
+            - button "10D" [ref=e307] [cursor=pointer]
+    - generic [ref=e309]:
+      - heading "선택 현황" [level=4] [ref=e310]
+      - generic [ref=e311]:
+        - generic [ref=e312]:
+          - generic [ref=e313]: 선택된 좌석
+          - generic [ref=e314]: 0 / 1
+        - paragraph [ref=e316]: 1석 더 선택하세요
+      - button "1석 더 선택" [disabled] [ref=e317]
+  - generic [ref=e318]:
+    - generic [ref=e319]: 좌석을 선택해주세요
+    - button "1석 더 선택" [disabled] [ref=e320]

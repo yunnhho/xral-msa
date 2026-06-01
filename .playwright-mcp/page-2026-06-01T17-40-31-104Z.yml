@@ -1,0 +1,31 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]: XRail
+    - generic [ref=e6]: 기차 예매 시스템
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - heading "로그인" [level=1] [ref=e11]
+      - paragraph [ref=e12]: XRail 회원 서비스를 이용하세요
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]: 이메일
+        - textbox "example@email.com" [ref=e16]
+      - generic [ref=e17]:
+        - generic [ref=e18]: 비밀번호
+        - textbox "비밀번호 입력" [ref=e19]
+      - button "로그인" [ref=e20] [cursor=pointer]
+      - generic [ref=e21]:
+        - link "💬 카카오로 로그인" [ref=e22] [cursor=pointer]:
+          - /url: http://localhost:8080/oauth2/authorization/kakao
+          - generic [ref=e23]: 💬
+          - text: 카카오로 로그인
+        - link "N 네이버로 로그인" [ref=e24] [cursor=pointer]:
+          - /url: http://localhost:8080/oauth2/authorization/naver
+          - generic [ref=e25]: "N"
+          - text: 네이버로 로그인
+    - generic [ref=e26]:
+      - link "회원가입" [ref=e27] [cursor=pointer]:
+        - /url: /signup
+      - generic [ref=e28]: "|"
+      - link "비회원 예매 조회" [ref=e29] [cursor=pointer]:
+        - /url: /guest/login

@@ -1,0 +1,13 @@
+- generic [ref=e56]:
+  - heading "대기열" [level=2] [ref=e57]
+  - generic [ref=e58]:
+    - strong [ref=e59]: KTX KTX-001
+    - text: "| 서울 → 부산"
+    - text: 2026-06-01 08:00:00
+  - paragraph [ref=e60]: "연결 방식: sse"
+  - generic [ref=e63]:
+    - generic [ref=e64]: "1"
+    - generic [ref=e65]: 대기 순번
+    - generic [ref=e66]: "전체 대기: 1명"
+    - generic [ref=e67]: "예상 대기: 약 3초"
+  - button "대기열 이탈" [ref=e68] [cursor=pointer]

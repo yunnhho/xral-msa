@@ -5,23 +5,35 @@ import com.xrail.train.entity.Ticket;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 public record ReservationResponse(
         Long reservationId,
         Long userId,
         String status,
         Long totalPrice,
+        LocalDateTime reservedAt,
         LocalDateTime expiresAt,
-        List<Long> ticketIds
+        List<TicketSummary> tickets
 ) {
-    public static ReservationResponse of(Reservation r, List<Ticket> tickets) {
+    public record TicketSummary(Long ticketId, Long seatId, String seatNumber, Long price) {}
+
+    public static ReservationResponse of(Reservation r, List<Ticket> tickets, Map<Long, String> seatNumberMap) {
+        List<TicketSummary> summaries = tickets.stream()
+                .map(t -> new TicketSummary(
+                        t.getTicketId(),
+                        t.getSeatId(),
+                        seatNumberMap.getOrDefault(t.getSeatId(), String.valueOf(t.getSeatId())),
+                        t.getPrice()))
+                .toList();
         return new ReservationResponse(
                 r.getReservationId(),
                 r.getUserId(),
                 r.getStatus().name(),
                 r.getTotalPrice(),
+                r.getReservedAt(),
                 r.getExpiresAt(),
-                tickets.stream().map(Ticket::getTicketId).toList()
+                summaries
         );
     }
 }

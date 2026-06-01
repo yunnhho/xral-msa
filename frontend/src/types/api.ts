@@ -107,6 +107,7 @@ export interface TicketSummary {
 
 export interface Reservation {
   reservationId: number
+  userId: number
   status: 'PENDING' | 'PAID' | 'CANCELLED'
   totalPrice: number
   reservedAt: string
@@ -123,6 +124,16 @@ export interface QueueStatus {
   expectedWaitSeconds?: number
   queueToken?: string
   expiresAt?: string
+}
+
+// Coupon
+export interface CouponValidateResponse {
+  code: string
+  type: 'PERCENT' | 'FIXED'
+  discountValue: number
+  discountAmount: number
+  finalAmount: number
+  description: string
 }
 
 // Payment

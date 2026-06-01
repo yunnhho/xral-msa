@@ -1,0 +1,24 @@
+- generic [ref=e157]:
+  - heading "결제" [level=2] [ref=e158]
+  - generic [ref=e159]:
+    - generic [ref=e160]:
+      - strong [ref=e161]: 예약 번호
+      - text: ": 12"
+    - generic [ref=e162]:
+      - strong [ref=e163]: 좌석
+      - text: ": 10D"
+    - generic [ref=e164]:
+      - strong [ref=e165]: 결제 금액
+      - text: ": 30,000원"
+    - generic [ref=e166]:
+      - strong [ref=e167]: 결제 만료
+      - text: ": 19분 1초 남음"
+  - generic [ref=e168]:
+    - generic [ref=e169]:
+      - radio "신용카드" [checked] [active] [ref=e170]
+      - text: 신용카드
+    - generic [ref=e171]:
+      - radio "계좌이체" [ref=e172]
+      - text: 계좌이체
+  - button "30,000원 결제하기" [ref=e173] [cursor=pointer]
+  - button "취소" [ref=e174] [cursor=pointer]

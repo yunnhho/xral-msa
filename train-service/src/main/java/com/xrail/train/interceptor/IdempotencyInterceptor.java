@@ -5,7 +5,10 @@ import com.xrail.common.dto.ApiResponse;
 import com.xrail.common.exception.ErrorCode;
 import com.xrail.common.header.Headers;
 import com.xrail.train.dto.ReservationResponse;
+import com.xrail.train.entity.Seat;
+import com.xrail.train.entity.Ticket;
 import com.xrail.train.repository.ReservationRepository;
+import com.xrail.train.repository.SeatRepository;
 import com.xrail.train.repository.TicketRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -34,6 +37,7 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
     private final RedissonClient redissonClient;
     private final ReservationRepository reservationRepository;
     private final TicketRepository ticketRepository;
+    private final SeatRepository seatRepository;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -55,7 +59,10 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
         return reservationRepository.findByIdempotencyKey(idempotencyKey)
                 .map(existing -> {
                     var tickets = ticketRepository.findByReservationReservationId(existing.getReservationId());
-                    ReservationResponse body = ReservationResponse.of(existing, tickets);
+                    var seatIds = tickets.stream().map(Ticket::getSeatId).toList();
+                    var seatNumberMap = seatRepository.findAllById(seatIds).stream()
+                            .collect(java.util.stream.Collectors.toMap(Seat::getSeatId, Seat::getSeatNumber));
+                    ReservationResponse body = ReservationResponse.of(existing, tickets, seatNumberMap);
                     try {
                         response.setStatus(HttpServletResponse.SC_OK);
                         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

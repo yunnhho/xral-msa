@@ -28,6 +28,7 @@ public enum ErrorCode {
     // Payment
     PAYMENT_FAILED(HttpStatus.UNPROCESSABLE_ENTITY, "PAYMENT_FAILED", "결제 처리에 실패했습니다."),
     IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT", "중복된 요청입니다."),
+    COUPON_INVALID(HttpStatus.BAD_REQUEST, "COUPON_INVALID", "유효하지 않은 쿠폰 코드입니다."),
 
     // Queue
     QUEUE_NOT_ACTIVE(HttpStatus.FORBIDDEN, "QUEUE_NOT_ACTIVE", "대기열 토큰이 누락되었거나 만료되었습니다."),

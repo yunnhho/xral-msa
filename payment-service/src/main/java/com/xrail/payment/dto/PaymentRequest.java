@@ -7,5 +7,6 @@ import jakarta.validation.constraints.Positive;
 public record PaymentRequest(
         @NotNull Long reservationId,
         @NotNull @Positive Long amount,
-        @NotBlank String method
+        @NotBlank String method,
+        String couponCode  // nullable — 쿠폰 미사용 시 null
 ) {}

@@ -40,6 +40,12 @@ public class Payment extends BaseTimeEntity {
     @Column(name = "failure_reason", length = 255)
     private String failureReason;
 
+    @Column(name = "coupon_code", length = 50)
+    private String couponCode;
+
+    @Column(name = "discount_amount", nullable = false)
+    private Long discountAmount = 0L;
+
     // P2: 낙관적 락
     @Version
     private Long version;
@@ -47,12 +53,14 @@ public class Payment extends BaseTimeEntity {
     protected Payment() {}
 
     @Builder
-    public Payment(Long reservationId, Long userId, Long amount, String method, String idempotencyKey) {
+    public Payment(Long reservationId, Long userId, Long amount, String method, String idempotencyKey, String couponCode, Long discountAmount) {
         this.reservationId = reservationId;
         this.userId = userId;
         this.amount = amount;
         this.method = method;
         this.idempotencyKey = idempotencyKey;
+        this.couponCode = couponCode;
+        this.discountAmount = discountAmount != null ? discountAmount : 0L;
         this.status = PaymentStatus.REQUESTED;
     }
 

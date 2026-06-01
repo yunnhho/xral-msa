@@ -1,0 +1,105 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - button "XRail 승차권 예매" [ref=e7] [cursor=pointer]:
+        - generic [ref=e8]: XRail
+        - generic [ref=e9]: 승차권 예매
+      - navigation [ref=e10]:
+        - button "기차 예매" [ref=e11] [cursor=pointer]
+        - button "예매 내역" [ref=e12] [cursor=pointer]
+      - generic [ref=e13]:
+        - generic [ref=e14]: 테스터님
+        - button "로그아웃" [ref=e15] [cursor=pointer]
+  - generic [ref=e17]:
+    - generic [ref=e18]:
+      - paragraph [ref=e19]: 기차 승차권 예매
+      - heading "어디로 떠나실 건가요?" [level=1] [ref=e20]
+    - generic [ref=e23]:
+      - generic [ref=e24]:
+        - generic [ref=e25]: 출발역
+        - combobox [ref=e27]:
+          - option "선택"
+          - option "서울" [selected]
+          - option "대전"
+          - option "동대구"
+          - option "부산"
+      - button "⇄" [ref=e28] [cursor=pointer]
+      - generic [ref=e29]:
+        - generic [ref=e30]: 도착역
+        - combobox [ref=e31]:
+          - option "선택"
+          - option "서울"
+          - option "대전"
+          - option "동대구"
+          - option "부산" [selected]
+      - generic [ref=e32]:
+        - generic [ref=e33]: 출발일
+        - textbox [ref=e34]: 2026-06-01
+      - generic [ref=e35]:
+        - generic [ref=e36]: 인원
+        - button "총 1명 ▼" [ref=e37] [cursor=pointer]:
+          - generic [ref=e38]: 총 1명
+          - generic [ref=e39]: ▼
+      - button "열차 조회" [ref=e40] [cursor=pointer]
+  - generic [ref=e45]:
+    - generic [ref=e46]:
+      - generic [ref=e47]: 서울
+      - generic [ref=e48]: →
+      - generic [ref=e49]: 부산
+      - generic [ref=e50]: 6월 1일 (월)
+      - generic [ref=e51]: 성인 1명
+      - generic [ref=e52]: 3편
+    - generic [ref=e53]:
+      - generic [ref=e54]: 열차
+      - generic [ref=e55]: 출발 → 도착
+      - generic [ref=e56]: 소요
+      - generic [ref=e57]: 인당 운임
+      - generic [ref=e58]: 잔여석
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - text: KTX
+        - generic [ref=e62]: KTX-001
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - generic [ref=e65]: 08:00
+          - generic [ref=e66]: 서울
+        - generic [ref=e67]: —
+        - generic [ref=e68]:
+          - generic [ref=e69]: 10:30
+          - generic [ref=e70]: 부산
+      - generic [ref=e71]: 2h 30m
+      - generic [ref=e73]: 30,000원
+      - generic [ref=e74]: 78석
+      - button "예매하기" [ref=e76] [cursor=pointer]
+    - generic [ref=e77]:
+      - generic [ref=e78]:
+        - text: KTX
+        - generic [ref=e79]: KTX-001
+      - generic [ref=e80]:
+        - generic [ref=e81]:
+          - generic [ref=e82]: 12:00
+          - generic [ref=e83]: 서울
+        - generic [ref=e84]: —
+        - generic [ref=e85]:
+          - generic [ref=e86]: 14:30
+          - generic [ref=e87]: 부산
+      - generic [ref=e88]: 2h 30m
+      - generic [ref=e90]: 30,000원
+      - generic [ref=e91]: 78석
+      - button "예매하기" [ref=e93] [cursor=pointer]
+    - generic [ref=e94]:
+      - generic [ref=e95]:
+        - text: KTX
+        - generic [ref=e96]: KTX-001
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - generic [ref=e99]: 16:00
+          - generic [ref=e100]: 서울
+        - generic [ref=e101]: —
+        - generic [ref=e102]:
+          - generic [ref=e103]: 18:30
+          - generic [ref=e104]: 부산
+      - generic [ref=e105]: 2h 30m
+      - generic [ref=e107]: 30,000원
+      - generic [ref=e108]: 80석
+      - button "예매하기" [ref=e110] [cursor=pointer]

@@ -1,0 +1,46 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - button "XRail 승차권 예매" [ref=e7] [cursor=pointer]:
+        - generic [ref=e8]: XRail
+        - generic [ref=e9]: 승차권 예매
+      - navigation [ref=e10]:
+        - button "기차 예매" [ref=e11] [cursor=pointer]
+        - button "예매 내역" [ref=e12] [cursor=pointer]
+      - generic [ref=e13]:
+        - generic [ref=e14]: 테스터님
+        - button "로그아웃" [ref=e15] [cursor=pointer]
+  - generic [ref=e17]:
+    - generic [ref=e18]:
+      - paragraph [ref=e19]: 기차 승차권 예매
+      - heading "어디로 떠나실 건가요?" [level=1] [ref=e20]
+    - generic [ref=e23]:
+      - generic [ref=e24]:
+        - generic [ref=e25]: 출발역
+        - combobox [ref=e27]:
+          - option "선택" [selected]
+          - option "서울"
+          - option "대전"
+          - option "동대구"
+          - option "부산"
+      - button "⇄" [ref=e28] [cursor=pointer]
+      - generic [ref=e29]:
+        - generic [ref=e30]: 도착역
+        - combobox [ref=e31]:
+          - option "선택" [selected]
+          - option "서울"
+          - option "대전"
+          - option "동대구"
+          - option "부산"
+      - generic [ref=e32]:
+        - generic [ref=e33]: 출발일
+        - textbox [ref=e34]: 2026-06-01
+      - generic [ref=e35]:
+        - generic [ref=e36]: 인원
+        - button "총 1명 ▼" [ref=e37] [cursor=pointer]:
+          - generic [ref=e38]: 총 1명
+          - generic [ref=e39]: ▼
+      - button "열차 조회" [ref=e40] [cursor=pointer]
+  - generic [ref=e42]:
+    - generic [ref=e43]: 🚄
+    - paragraph [ref=e44]: 출발역, 도착역, 날짜를 선택하고 열차를 조회하세요.

@@ -18,12 +18,13 @@ public class SagaLogService {
     private final ReservationSagaLogRepository sagaLogRepository;
     private final ObjectMapper objectMapper;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    // timeout=3: saga log is non-critical; fail fast rather than wait innodb_lock_wait_timeout (50s default)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 3)
     public void recordOutbound(Long reservationId, String eventType, Object payload) {
         save(reservationId, eventType, "OUTBOUND", payload);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 3)
     public void recordInbound(Long reservationId, String eventType, Object payload) {
         save(reservationId, eventType, "INBOUND", payload);
     }

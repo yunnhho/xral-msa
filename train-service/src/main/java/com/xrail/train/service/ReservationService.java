@@ -7,12 +7,14 @@ import com.xrail.train.dto.ReservationRequest;
 import com.xrail.train.dto.ReservationResponse;
 import com.xrail.train.entity.Reservation;
 import com.xrail.train.entity.Schedule;
+import com.xrail.train.entity.Seat;
 import com.xrail.train.entity.Ticket;
 import com.xrail.train.entity.enums.ReservationStatus;
 import com.xrail.train.kafka.TrainEventProducer;
 import com.xrail.train.repository.ReservationRepository;
 import com.xrail.train.repository.RouteStationRepository;
 import com.xrail.train.repository.ScheduleRepository;
+import com.xrail.train.repository.SeatRepository;
 import com.xrail.train.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -36,6 +40,7 @@ public class ReservationService {
     private final TicketRepository ticketRepository;
     private final ScheduleRepository scheduleRepository;
     private final RouteStationRepository routeStationRepository;
+    private final SeatRepository seatRepository;
     private final LuaScriptService luaScriptService;
     private final TrainEventProducer eventProducer;
     private final SagaLogService sagaLogService;
@@ -47,7 +52,7 @@ public class ReservationService {
             return reservationRepository.findByIdempotencyKey(idempotencyKey)
                     .map(existing -> {
                         List<Ticket> tickets = ticketRepository.findByReservationReservationId(existing.getReservationId());
-                        return ReservationResponse.of(existing, tickets);
+                        return toResponse(existing, tickets);
                     })
                     .orElseGet(() -> doCreate(userId, userName, request, idempotencyKey));
         }
@@ -71,11 +76,16 @@ public class ReservationService {
         // 2. Lua bitmask atomic lock — with rollback on partial failure (T1)
         List<Long> lockedSeats = new ArrayList<>();
         for (Long seatId : request.seatIds()) {
-            // DB double-check (T2 — last line of defence)
+            // DB double-check (T2 — last line of defence): CANCELLED 티켓은 충돌 제외
             boolean dbConflict = ticketRepository
-                    .existsByScheduleIdAndSeatIdAndStartStationIdxLessThanAndEndStationIdxGreaterThan(
-                            request.scheduleId(), seatId, endIdx, startIdx);
+                    .existsByScheduleIdAndSeatIdAndStartStationIdxLessThanAndEndStationIdxGreaterThanAndStatusIn(
+                            request.scheduleId(), seatId, endIdx, startIdx,
+                            List.of(com.xrail.train.entity.enums.TicketStatus.RESERVED,
+                                    com.xrail.train.entity.enums.TicketStatus.ISSUED));
             if (dbConflict) {
+                // Bug #2 fix: Redis bitmask가 누락된 경우 DB 충돌 발견 시 즉시 복원
+                luaScriptService.tryReserve(request.scheduleId(), seatId, startIdx, endIdx);
+                // 이미 잠근 좌석들만 롤백 (방금 복원한 seatId는 lockedSeats에 없으므로 유지됨)
                 rollbackLockedSeats(lockedSeats, request.scheduleId(), startIdx, endIdx);
                 throw new BusinessException(ErrorCode.SEAT_ALREADY_TAKEN);
             }
@@ -128,7 +138,7 @@ public class ReservationService {
         }
 
         log.info("Reservation created reservationId={} userId={} seats={}", reservation.getReservationId(), userId, request.seatIds());
-        return ReservationResponse.of(reservation, tickets);
+        return toResponse(reservation, tickets);
     }
 
     @Transactional(readOnly = true)
@@ -139,7 +149,7 @@ public class ReservationService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         List<Ticket> tickets = ticketRepository.findByReservationReservationId(reservationId);
-        return ReservationResponse.of(reservation, tickets);
+        return toResponse(reservation, tickets);
     }
 
     @Transactional(readOnly = true)
@@ -147,9 +157,32 @@ public class ReservationService {
         return reservationRepository.findByUserId(userId).stream()
                 .map(r -> {
                     List<Ticket> tickets = ticketRepository.findByReservationReservationId(r.getReservationId());
-                    return ReservationResponse.of(r, tickets);
+                    return toResponse(r, tickets);
                 })
                 .toList();
+    }
+
+    @Transactional
+    public void cancelByUser(Long reservationId, Long userId) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+        if (!reservation.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        if (reservation.getStatus() == ReservationStatus.CANCELLED) return;
+        List<Ticket> tickets = ticketRepository.findByReservationReservationId(reservationId);
+        tickets.forEach(Ticket::cancel);
+        for (Ticket t : tickets) {
+            luaScriptService.rollback(t.getScheduleId(), t.getSeatId(), t.getStartStationIdx(), t.getEndStationIdx());
+        }
+        reservation.cancel();
+        eventProducer.publishSeatReleased(reservation, tickets, "USER_CANCEL");
+        try {
+            sagaLogService.recordOutbound(reservationId, Topics.SEAT_RELEASED, "USER_CANCEL");
+        } catch (Exception e) {
+            log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
+        }
+        log.info("Reservation cancelled by user reservationId={} userId={}", reservationId, userId);
     }
 
     @Transactional
@@ -161,7 +194,11 @@ public class ReservationService {
         }
         reservation.cancel();
         eventProducer.publishSeatReleased(reservation, tickets, "TIMEOUT");
-        sagaLogService.recordOutbound(reservation.getReservationId(), Topics.SEAT_RELEASED, "TIMEOUT");
+        try {
+            sagaLogService.recordOutbound(reservation.getReservationId(), Topics.SEAT_RELEASED, "TIMEOUT");
+        } catch (Exception e) {
+            log.warn("Saga log write failed reservationId={} reason={}", reservation.getReservationId(), e.getMessage());
+        }
         log.info("Reservation expired reservationId={}", reservation.getReservationId());
     }
 
@@ -175,7 +212,11 @@ public class ReservationService {
             List<Ticket> tickets = ticketRepository.findByReservationReservationId(reservationId);
             tickets.forEach(Ticket::issue);
             eventProducer.publishSeatConfirmed(reservation, tickets);
-            sagaLogService.recordInbound(reservationId, Topics.PAYMENT_COMPLETED, reservationId);
+            try {
+                sagaLogService.recordInbound(reservationId, Topics.PAYMENT_COMPLETED, reservationId);
+            } catch (Exception e) {
+                log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
+            }
         });
     }
 
@@ -189,9 +230,20 @@ public class ReservationService {
             }
             reservation.cancel();
             eventProducer.publishSeatReleased(reservation, tickets, "PAYMENT_FAILED");
-            sagaLogService.recordInbound(reservationId, Topics.PAYMENT_FAILED, reservationId);
+            try {
+                sagaLogService.recordInbound(reservationId, Topics.PAYMENT_FAILED, reservationId);
+            } catch (Exception e) {
+                log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
+            }
             log.info("Reservation cancelled due to payment failure reservationId={}", reservationId);
         });
+    }
+
+    private ReservationResponse toResponse(Reservation r, List<Ticket> tickets) {
+        List<Long> seatIds = tickets.stream().map(Ticket::getSeatId).toList();
+        Map<Long, String> seatNumberMap = seatRepository.findAllById(seatIds).stream()
+                .collect(Collectors.toMap(Seat::getSeatId, Seat::getSeatNumber));
+        return ReservationResponse.of(r, tickets, seatNumberMap);
     }
 
     private void rollbackLockedSeats(List<Long> lockedSeats, Long scheduleId, int startIdx, int endIdx) {

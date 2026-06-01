@@ -8,6 +8,8 @@ import com.xrail.train.service.LuaScriptService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +20,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReconciliationScheduler {
 
-    // 최대 비트 위치 (노선 최대 역 수 가정)
     private static final int MAX_BIT_POSITIONS = 64;
 
     private final LuaScriptService luaScriptService;
@@ -26,32 +27,88 @@ public class ReconciliationScheduler {
     private final TrainEventProducer eventProducer;
     private final RedissonClient redissonClient;
 
-    // T4: 5분 주기. DB가 source of truth — Redis bitmask를 DB에 맞게 교정
+    // Bug #2 fix: 서비스 기동 시 DB → Redis 복원 (재시작 후 bitmask 초기화 대응)
+    @EventListener(ApplicationReadyEvent.class)
+    public void restoreOnStartup() {
+        log.info("Restoring Redis bitmask from DB on startup...");
+        try {
+            List<Ticket> active = ticketRepository.findByStatusIn(
+                    List.of(TicketStatus.RESERVED, TicketStatus.ISSUED));
+            int restored = 0;
+            for (Ticket t : active) {
+                try {
+                    boolean wasSet = luaScriptService.tryReserve(
+                            t.getScheduleId(), t.getSeatId(),
+                            t.getStartStationIdx(), t.getEndStationIdx());
+                    if (!wasSet) {
+                        // 이미 set된 경우 (정상) — 무시
+                    } else {
+                        restored++;
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to restore bitmask for ticketId={}", t.getTicketId(), e);
+                }
+            }
+            log.info("Startup restore complete. Restored {} bitmask entries from {} active tickets.",
+                    restored, active.size());
+        } catch (Exception e) {
+            log.error("Startup bitmask restore failed", e);
+        }
+    }
+
+    // T4: 5분 주기. DB가 source of truth — Redis bitmask를 DB에 맞게 양방향 교정
     @Scheduled(fixedDelay = 300_000)
     public void reconcile() {
         log.info("Starting Redis-DB bitmask reconciliation");
-        int phantomKeyCount = 0;
+        int phantomCleared = 0;
+        int missingRestored = 0;
 
+        // 1단계: phantom 비트 제거 (Redis에 있지만 DB에 없는 비트)
         Iterable<String> keys = redissonClient.getKeys().getKeysByPattern("sch:*:seat:*");
         for (String key : keys) {
             try {
-                boolean hadPhantom = processKey(key);
-                if (hadPhantom) phantomKeyCount++;
+                boolean hadPhantom = removePhantomBits(key);
+                if (hadPhantom) phantomCleared++;
             } catch (Exception e) {
-                log.error("Reconciliation error for key={}", key, e);
+                log.error("Reconciliation phantom-clear error for key={}", key, e);
             }
         }
 
-        log.info("Reconciliation complete. Keys with phantom bits cleared: {}", phantomKeyCount);
+        // 2단계: 누락 비트 복원 (DB에 있지만 Redis에 없는 비트) — Bug #2 fix
+        try {
+            List<Ticket> active = ticketRepository.findByStatusIn(
+                    List.of(TicketStatus.RESERVED, TicketStatus.ISSUED));
+            for (Ticket t : active) {
+                try {
+                    boolean wasFree = luaScriptService.isFree(
+                            t.getScheduleId(), t.getSeatId(),
+                            t.getStartStationIdx(), t.getEndStationIdx());
+                    if (wasFree) {
+                        // DB에 RESERVED/ISSUED 티켓이 있는데 Redis bitmask가 없음 → 복원
+                        luaScriptService.tryReserve(
+                                t.getScheduleId(), t.getSeatId(),
+                                t.getStartStationIdx(), t.getEndStationIdx());
+                        missingRestored++;
+                        log.warn("Restored missing bitmask ticketId={} scheduleId={} seatId={}",
+                                t.getTicketId(), t.getScheduleId(), t.getSeatId());
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to restore missing bit for ticketId={}", t.getTicketId(), e);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Reconciliation restore step failed", e);
+        }
+
+        log.info("Reconciliation complete. Phantom cleared: {}, Missing restored: {}",
+                phantomCleared, missingRestored);
     }
 
-    private boolean processKey(String key) {
-        // 키 파싱: sch:{scheduleId}:seat:{seatId}
+    private boolean removePhantomBits(String key) {
         String[] parts = key.split(":");
         if (parts.length != 4) return false;
 
-        long scheduleId;
-        long seatId;
+        long scheduleId, seatId;
         try {
             scheduleId = Long.parseLong(parts[1]);
             seatId = Long.parseLong(parts[3]);
@@ -59,32 +116,22 @@ public class ReconciliationScheduler {
             return false;
         }
 
-        // DB에서 활성 티켓 조회 (RESERVED or ISSUED — 이 비트들은 정당함)
         List<Ticket> activeTickets = ticketRepository.findByScheduleIdAndSeatIdAndStatusIn(
                 scheduleId, seatId, List.of(TicketStatus.RESERVED, TicketStatus.ISSUED));
 
         boolean hadPhantom = false;
-
         for (int bit = 0; bit < MAX_BIT_POSITIONS; bit++) {
             if (!redissonClient.getBitSet(key).get(bit)) continue;
-
-            // DB 활성 티켓이 이 비트를 커버하는지 확인
             final int b = bit;
             boolean covered = activeTickets.stream()
                     .anyMatch(t -> b >= t.getStartStationIdx() && b < t.getEndStationIdx());
-
             if (!covered) {
-                // 팬텀 비트 — DB에 근거 없음. T1 규칙: rollback_seat.lua로만 해제
                 luaScriptService.rollback(scheduleId, seatId, bit, bit + 1);
                 hadPhantom = true;
                 log.warn("Cleared phantom bit key={} bit={}", key, bit);
             }
         }
-
-        if (hadPhantom) {
-            eventProducer.publishSeatReleasedReconcile(scheduleId, seatId);
-        }
-
+        if (hadPhantom) eventProducer.publishSeatReleasedReconcile(scheduleId, seatId);
         return hadPhantom;
     }
 }

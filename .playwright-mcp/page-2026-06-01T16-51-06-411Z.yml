@@ -1,0 +1,148 @@
+- generic [ref=e427]:
+  - banner [ref=e428]:
+    - generic [ref=e429]:
+      - button "XRail 승차권 예매" [ref=e430] [cursor=pointer]:
+        - generic [ref=e431]: XRail
+        - generic [ref=e432]: 승차권 예매
+      - navigation [ref=e433]:
+        - button "기차 예매" [ref=e434] [cursor=pointer]
+        - button "예매 내역" [ref=e435] [cursor=pointer]
+      - generic [ref=e436]:
+        - generic [ref=e437]: 테스터님
+        - button "로그아웃" [ref=e438] [cursor=pointer]
+  - generic [ref=e440]:
+    - generic [ref=e441]:
+      - heading "내 예매 내역" [level=2] [ref=e442]
+      - paragraph [ref=e443]: 나의 기차 예매 현황을 확인하세요.
+    - generic [ref=e444]: 총 10건
+  - generic [ref=e446]:
+    - generic [ref=e447]:
+      - heading "진행 중인 예매 (7)" [level=3] [ref=e448]
+      - generic [ref=e451]:
+        - generic [ref=e452]:
+          - generic [ref=e453]:
+            - generic [ref=e454]: 예약번호
+            - generic [ref=e455]: No.10
+          - generic [ref=e456]: 결제 대기
+        - generic [ref=e458]:
+          - generic [ref=e460]: 10B
+          - generic [ref=e462]: 30,000원
+        - generic [ref=e463]:
+          - generic [ref=e464]: "예약일: 2026년 6월 2일 오전 12:37"
+          - generic [ref=e465]: "만료: 6월 2일 오전 12:57"
+        - generic [ref=e466]:
+          - button "결제하기" [ref=e467] [cursor=pointer]
+          - button "예약 취소" [ref=e468] [cursor=pointer]
+      - generic [ref=e471]:
+        - generic [ref=e472]:
+          - generic [ref=e473]:
+            - generic [ref=e474]: 예약번호
+            - generic [ref=e475]: No.11
+          - generic [ref=e476]: 결제 대기
+        - generic [ref=e478]:
+          - generic [ref=e480]: 10C
+          - generic [ref=e482]: 30,000원
+        - generic [ref=e483]:
+          - generic [ref=e484]: "예약일: 2026년 6월 2일 오전 12:44"
+          - generic [ref=e485]: "만료: 6월 2일 오전 01:04"
+        - generic [ref=e486]:
+          - button "결제하기" [ref=e487] [cursor=pointer]
+          - button "예약 취소" [ref=e488] [cursor=pointer]
+      - generic [ref=e491]:
+        - generic [ref=e492]:
+          - generic [ref=e493]:
+            - generic [ref=e494]: 예약번호
+            - generic [ref=e495]: No.12
+          - generic [ref=e496]: 결제 대기
+        - generic [ref=e498]:
+          - generic [ref=e500]: 10D
+          - generic [ref=e502]: 30,000원
+        - generic [ref=e503]:
+          - generic [ref=e504]: "예약일: 2026년 6월 2일 오전 12:50"
+          - generic [ref=e505]: "만료: 6월 2일 오전 01:10"
+        - generic [ref=e506]:
+          - button "결제하기" [ref=e507] [cursor=pointer]
+          - button "예약 취소" [ref=e508] [cursor=pointer]
+      - generic [ref=e511]:
+        - generic [ref=e512]:
+          - generic [ref=e513]:
+            - generic [ref=e514]: 예약번호
+            - generic [ref=e515]: No.13
+          - generic [ref=e516]: 결제 완료
+        - generic [ref=e518]:
+          - generic [ref=e520]: 8C
+          - generic [ref=e522]: 30,000원
+        - generic [ref=e524]: "예약일: 2026년 6월 2일 오전 12:58"
+        - button "예약 취소" [ref=e526] [cursor=pointer]
+      - generic [ref=e529]:
+        - generic [ref=e530]:
+          - generic [ref=e531]:
+            - generic [ref=e532]: 예약번호
+            - generic [ref=e533]: No.14
+          - generic [ref=e534]: 결제 완료
+        - generic [ref=e536]:
+          - generic [ref=e537]:
+            - generic [ref=e538]: 3D
+            - generic [ref=e539]: 7C
+            - generic [ref=e540]: 2매
+          - generic [ref=e542]: 20,000원
+        - generic [ref=e544]: "예약일: 2026년 6월 2일 오전 01:07"
+        - button "예약 취소" [ref=e546] [cursor=pointer]
+      - generic [ref=e549]:
+        - generic [ref=e550]:
+          - generic [ref=e551]:
+            - generic [ref=e552]: 예약번호
+            - generic [ref=e553]: No.15
+          - generic [ref=e554]: 결제 완료
+        - generic [ref=e556]:
+          - generic [ref=e558]: 5A
+          - generic [ref=e560]: 30,000원
+        - generic [ref=e562]: "예약일: 2026년 6월 2일 오전 01:25"
+        - button "예약 취소" [ref=e564] [cursor=pointer]
+      - generic [ref=e567]:
+        - generic [ref=e568]:
+          - generic [ref=e569]:
+            - generic [ref=e570]: 예약번호
+            - generic [ref=e571]: No.16
+          - generic [ref=e572]: 결제 대기
+        - generic [ref=e574]:
+          - generic [ref=e576]: 3B
+          - generic [ref=e578]: 30,000원
+        - generic [ref=e579]:
+          - generic [ref=e580]: "예약일: 2026년 6월 2일 오전 01:50"
+          - generic [ref=e581]: "만료: 6월 2일 오전 02:10"
+        - generic [ref=e582]:
+          - button "결제하기" [ref=e583] [cursor=pointer]
+          - button "예약 취소" [ref=e584] [cursor=pointer]
+    - generic [ref=e585]:
+      - heading "취소된 예매 (3)" [level=3] [ref=e586]
+      - generic [ref=e589]:
+        - generic [ref=e590]:
+          - generic [ref=e591]:
+            - generic [ref=e592]: 예약번호
+            - generic [ref=e593]: No.7
+          - generic [ref=e594]: 취소됨
+        - generic [ref=e596]:
+          - generic [ref=e598]: 1A
+          - generic [ref=e600]: 30,000원
+        - generic [ref=e602]: "예약일: 2026년 6월 2일 오전 12:33"
+      - generic [ref=e605]:
+        - generic [ref=e606]:
+          - generic [ref=e607]:
+            - generic [ref=e608]: 예약번호
+            - generic [ref=e609]: No.8
+          - generic [ref=e610]: 취소됨
+        - generic [ref=e612]:
+          - generic [ref=e614]: 2A
+          - generic [ref=e616]: 30,000원
+        - generic [ref=e618]: "예약일: 2026년 6월 2일 오전 12:34"
+      - generic [ref=e621]:
+        - generic [ref=e622]:
+          - generic [ref=e623]:
+            - generic [ref=e624]: 예약번호
+            - generic [ref=e625]: No.9
+          - generic [ref=e626]: 취소됨
+        - generic [ref=e628]:
+          - generic [ref=e630]: 10A
+          - generic [ref=e632]: 30,000원
+        - generic [ref=e634]: "예약일: 2026년 6월 2일 오전 12:36"

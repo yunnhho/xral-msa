@@ -2,13 +2,14 @@ package com.xrail.payment.dto;
 
 import com.xrail.payment.entity.Payment;
 
-import java.time.Instant;
-
 public record PaymentResponse(
         Long paymentId,
         Long reservationId,
         String status,
         Long amount,
+        Long discountAmount,
+        Long finalAmount,
+        String couponCode,
         String method,
         String providerTxnId,
         String failureReason,
@@ -20,6 +21,9 @@ public record PaymentResponse(
                 p.getReservationId(),
                 p.getStatus().name(),
                 p.getAmount(),
+                p.getDiscountAmount(),
+                p.getAmount() - p.getDiscountAmount(),
+                p.getCouponCode(),
                 p.getMethod(),
                 p.getProviderTxnId(),
                 p.getFailureReason(),

@@ -43,16 +43,19 @@ public class PaymentService {
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final MeterRegistry meterRegistry;
     private final TransactionTemplate txTemplate;
+    private final CouponService couponService;
 
     public PaymentService(PaymentRepository paymentRepository, PaymentGateway paymentGateway,
                           RedissonClient redissonClient, KafkaTemplate<String, Object> kafkaTemplate,
-                          MeterRegistry meterRegistry, PlatformTransactionManager txManager) {
+                          MeterRegistry meterRegistry, PlatformTransactionManager txManager,
+                          CouponService couponService) {
         this.paymentRepository = paymentRepository;
         this.paymentGateway = paymentGateway;
         this.redissonClient = redissonClient;
         this.kafkaTemplate = kafkaTemplate;
         this.meterRegistry = meterRegistry;
         this.txTemplate = new TransactionTemplate(txManager);
+        this.couponService = couponService;
     }
 
     /**
@@ -115,6 +118,15 @@ public class PaymentService {
         processingState.put("status", "PROCESSING");
         idemBucket.set(processingState, 30, TimeUnit.MINUTES);
 
+        // 쿠폰 할인 적용
+        long discountAmount = 0L;
+        String couponCode = request.couponCode();
+        if (couponCode != null && !couponCode.isBlank()) {
+            long finalAmount = couponService.applyDiscount(couponCode, request.amount());
+            discountAmount = request.amount() - finalAmount;
+        }
+        long chargeAmount = request.amount() - discountAmount;
+
         // INSERT Payment(REQUESTED)
         Payment payment = paymentRepository.save(Payment.builder()
                 .reservationId(request.reservationId())
@@ -122,13 +134,15 @@ public class PaymentService {
                 .amount(request.amount())
                 .method(request.method())
                 .idempotencyKey(idempotencyKey)
+                .couponCode(couponCode != null && !couponCode.isBlank() ? couponCode : null)
+                .discountAmount(discountAmount)
                 .build());
 
         // payment.requested emit (감사용, P4)
         publishPaymentRequested(payment, idempotencyKey);
 
-        // Mock PG 호출
-        PaymentGateway.PgResult pgResult = paymentGateway.charge(payment.getId(), request.amount(), request.method());
+        // Mock PG 호출 (쿠폰 적용 후 실제 청구 금액)
+        PaymentGateway.PgResult pgResult = paymentGateway.charge(payment.getId(), chargeAmount, request.method());
 
         if (pgResult.success()) {
             payment.complete(pgResult.providerTxnId());
