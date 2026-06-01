@@ -45,7 +45,7 @@ public class QueueTokenInterceptor implements HandlerInterceptor {
         }
 
         String scope = request.getParameter("scope");
-        if (scope == null) scope = "reservation";
+        if (scope == null) scope = "global";
 
         if (!validateToken(userId, scope, token)) {
             log.warn("Invalid queue token userId={} scope={}", userId, scope);

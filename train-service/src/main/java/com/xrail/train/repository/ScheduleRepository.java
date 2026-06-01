@@ -11,4 +11,7 @@ public interface ScheduleRepository extends JpaRepository<Schedule, Long> {
 
     @EntityGraph(attributePaths = {"route", "train"})
     List<Schedule> findByDepartureDateAndRouteRouteId(LocalDate departureDate, Long routeId);
+
+    @EntityGraph(attributePaths = {"route", "train"})
+    List<Schedule> findByDepartureDateAndRouteRouteIdIn(LocalDate departureDate, List<Long> routeIds);
 }

@@ -64,9 +64,18 @@ public class AuthController {
         return ApiResponse.ok();
     }
 
-    @Operation(summary = "내 정보 조회", description = "Gateway가 주입한 X-User-Id 헤더로 내 정보 반환.")
+    @Operation(summary = "내 정보 조회", description = "Authorization Bearer 헤더의 JWT로 내 정보 반환.")
     @GetMapping("/me")
-    public ApiResponse<MeResponse> me(@RequestHeader(Headers.USER_ID) Long userId) {
-        return ApiResponse.ok(authService.getMe(userId));
+    public ApiResponse<MeResponse> me(@RequestHeader("Authorization") String authorization) {
+        if (!authorization.startsWith("Bearer ")) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
+        try {
+            Claims claims = jwtTokenProvider.parseAndValidate(authorization.substring(7));
+            Long userId = Long.parseLong(claims.getSubject());
+            return ApiResponse.ok(authService.getMe(userId));
+        } catch (JwtException | NumberFormatException e) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
     }
 }

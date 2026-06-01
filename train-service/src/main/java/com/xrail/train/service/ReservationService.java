@@ -58,8 +58,15 @@ public class ReservationService {
         Schedule schedule = scheduleRepository.findById(request.scheduleId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
-        int startIdx = request.startStationIdx();
-        int endIdx = request.endStationIdx();
+        Long routeId = schedule.getRoute().getRouteId();
+        int startIdx = routeStationRepository
+                .findByRouteRouteIdAndStationStationId(routeId, request.departureStationId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.STATION_NOT_IN_ROUTE))
+                .getStationSequence();
+        int endIdx = routeStationRepository
+                .findByRouteRouteIdAndStationStationId(routeId, request.arrivalStationId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.STATION_NOT_IN_ROUTE))
+                .getStationSequence();
 
         // 2. Lua bitmask atomic lock — with rollback on partial failure (T1)
         List<Long> lockedSeats = new ArrayList<>();
@@ -97,22 +104,12 @@ public class ReservationService {
 
         List<Ticket> tickets = new ArrayList<>();
         for (Long seatId : request.seatIds()) {
-            // Find station IDs from route stations (use sequence index)
-            Long startStationId = routeStationRepository
-                    .findByRouteIdAndSeq(schedule.getRoute().getRouteId(), startIdx)
-                    .map(rs -> rs.getStation().getStationId())
-                    .orElse(null);
-            Long endStationId = routeStationRepository
-                    .findByRouteIdAndSeq(schedule.getRoute().getRouteId(), endIdx)
-                    .map(rs -> rs.getStation().getStationId())
-                    .orElse(null);
-
             tickets.add(ticketRepository.save(Ticket.builder()
                     .reservation(reservation)
                     .scheduleId(request.scheduleId())
                     .seatId(seatId)
-                    .startStationId(startStationId)
-                    .endStationId(endStationId)
+                    .startStationId(request.departureStationId())
+                    .endStationId(request.arrivalStationId())
                     .startStationIdx(startIdx)
                     .endStationIdx(endIdx)
                     .price(price / request.seatIds().size())
@@ -123,7 +120,12 @@ public class ReservationService {
         MDC.put("userId", String.valueOf(userId));
         eventProducer.publishReservationCreated(reservation, tickets, startIdx, endIdx);
         eventProducer.publishSeatLocked(reservation, request.seatIds(), request.scheduleId());
-        sagaLogService.recordOutbound(reservation.getReservationId(), Topics.RESERVATION_CREATED, reservation.getReservationId());
+        try {
+            sagaLogService.recordOutbound(reservation.getReservationId(), Topics.RESERVATION_CREATED, reservation.getReservationId());
+        } catch (Exception e) {
+            // Saga log is non-critical; do not roll back the reservation
+            log.warn("Saga log write failed reservationId={} reason={}", reservation.getReservationId(), e.getMessage());
+        }
 
         log.info("Reservation created reservationId={} userId={} seats={}", reservation.getReservationId(), userId, request.seatIds());
         return ReservationResponse.of(reservation, tickets);

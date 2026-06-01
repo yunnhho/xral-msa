@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import client from '../api/client'
 import { useAuth } from '../contexts/AuthContext'
-import type { ApiResponse, Schedule, Station, StationsResponse } from '../types/api'
+import type { ApiResponse, Schedule, Station } from '../types/api'
 
 export default function HomePage() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
   const [stations, setStations] = useState<Station[]>([])
+  const [stationError, setStationError] = useState('')
   const [form, setForm] = useState({ departureStationId: '', arrivalStationId: '', date: todayString() })
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(false)
@@ -16,14 +17,18 @@ export default function HomePage() {
 
   useEffect(() => {
     client
-      .get<ApiResponse<StationsResponse>>('/api/stations')
-      .then(({ data }) => setStations(data.data?.stations ?? []))
-      .catch(() => {})
+      .get<ApiResponse<Station[]>>('/api/stations')
+      .then(({ data }) => setStations(data.data ?? []))
+      .catch(() => setStationError('역 목록을 불러오지 못했습니다.'))
   }, [])
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    if (form.departureStationId === form.arrivalStationId) {
+      setError('출발역과 도착역이 같습니다.')
+      return
+    }
     setLoading(true)
     try {
       const { data } = await client.get<ApiResponse<{ schedules: Schedule[] }>>('/api/schedules', {
@@ -90,6 +95,7 @@ export default function HomePage() {
             {loading ? '검색 중...' : '열차 검색'}
           </button>
         </form>
+        {stationError && <p style={styles.error}>{stationError}</p>}
         {error && <p style={styles.error}>{error}</p>}
         {schedules.length > 0 && (
           <table style={styles.table}>
@@ -108,7 +114,11 @@ export default function HomePage() {
                   <td>{sc.estimatedPrice.toLocaleString()}원</td>
                   <td>{sc.availableSeats}</td>
                   <td>
-                    <button onClick={() => handleSelect(sc)} style={styles.selectBtn}>선택</button>
+                    <button
+                      onClick={() => handleSelect(sc)}
+                      disabled={sc.availableSeats === 0}
+                      style={sc.availableSeats === 0 ? styles.selectBtnDisabled : styles.selectBtn}
+                    >선택</button>
                   </td>
                 </tr>
               ))}
@@ -134,6 +144,7 @@ const styles = {
   searchBtn: { padding: '8px 20px', background: '#1a73e8', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 600 } as React.CSSProperties,
   table: { width: '100%', borderCollapse: 'collapse' as const, background: '#fff', borderRadius: 8, overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,.1)' },
   selectBtn: { padding: '4px 12px', background: '#1a73e8', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' } as React.CSSProperties,
+  selectBtnDisabled: { padding: '4px 12px', background: '#9e9e9e', color: '#fff', border: 'none', borderRadius: 4, cursor: 'not-allowed' } as React.CSSProperties,
   error: { color: '#d32f2f', fontSize: 13 } as React.CSSProperties,
   linkBtn: { background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 14 } as React.CSSProperties,
 }

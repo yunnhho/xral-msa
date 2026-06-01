@@ -1,0 +1,9 @@
+- generic [ref=e174]:
+  - heading "대기열" [level=2] [ref=e175]
+  - generic [ref=e176]:
+    - strong [ref=e177]: KTX KTX-001
+    - text: "| 서울 → 부산"
+    - text: 2026-06-01 08:00:00
+  - paragraph [ref=e178]: 이 열차는 혼잡 시 대기열을 거칩니다. 대기열에 참가하세요.
+  - button "대기열 참가" [ref=e179] [cursor=pointer]
+  - button "취소" [ref=e180] [cursor=pointer]

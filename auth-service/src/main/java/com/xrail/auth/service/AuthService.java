@@ -30,7 +30,7 @@ public class AuthService {
     @Transactional
     public MeResponse signUp(SignUpRequest request) {
         if (memberRepository.existsByEmail(request.email())) {
-            throw new BusinessException(ErrorCode.IDEMPOTENCY_CONFLICT);
+            throw new BusinessException(ErrorCode.DUPLICATE_EMAIL);
         }
         Member member = memberRepository.save(Member.builder()
                 .email(request.email())
@@ -72,8 +72,7 @@ public class AuthService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
-        refreshTokenService.rotate(request.refreshToken(),
-                httpRequest.getRemoteAddr(), httpRequest.getHeader("User-Agent"));
+        Long oldTokenId = refreshTokenService.rotate(request.refreshToken());
 
         Long userId = Long.parseLong(claims.getSubject());
         Member member = memberRepository.findById(userId)
@@ -81,7 +80,7 @@ public class AuthService {
 
         String newRefresh = jwtTokenProvider.issueRefreshToken(userId);
         refreshTokenService.save(userId, newRefresh,
-                httpRequest.getRemoteAddr(), httpRequest.getHeader("User-Agent"), null);
+                httpRequest.getRemoteAddr(), httpRequest.getHeader("User-Agent"), oldTokenId);
 
         String newAccess = jwtTokenProvider.issueAccessToken(userId, member.getRole(), member.getName());
         return new LoginResponse(userId, member.getName(), member.getRole().name(), newAccess, newRefresh);

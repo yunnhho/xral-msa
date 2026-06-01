@@ -13,6 +13,7 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -51,6 +52,7 @@ public class JwtTokenProvider {
     public String issueRefreshToken(Long userId) {
         Instant now = Instant.now();
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(String.valueOf(userId))
                 .claim("type", "refresh")
                 .issuedAt(Date.from(now))

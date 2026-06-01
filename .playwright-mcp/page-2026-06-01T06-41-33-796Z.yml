@@ -1,0 +1,23 @@
+- generic [ref=e18]:
+  - banner [ref=e19]:
+    - generic [ref=e20]: XRail
+    - generic [ref=e21]:
+      - generic [ref=e22]: 테스터
+      - button "내 예매" [ref=e23] [cursor=pointer]
+      - button "로그아웃" [ref=e24] [cursor=pointer]
+  - main [ref=e25]:
+    - generic [ref=e26]:
+      - combobox [ref=e27]:
+        - option "출발역 선택" [selected]
+        - option "서울"
+        - option "대전"
+        - option "동대구"
+        - option "부산"
+      - combobox [ref=e28]:
+        - option "도착역 선택" [selected]
+        - option "서울"
+        - option "대전"
+        - option "동대구"
+        - option "부산"
+      - textbox [ref=e29]: 2026-06-01
+      - button "열차 검색" [ref=e30] [cursor=pointer]

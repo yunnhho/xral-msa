@@ -45,7 +45,7 @@ public class NonMemberService {
 
         String access = jwtTokenProvider.issueAccessToken(nonMember.getUserId(), nonMember.getRole(), nonMember.getName());
         String refresh = jwtTokenProvider.issueRefreshToken(nonMember.getUserId());
-        return new NonMemberResponse(nonMember.getUserId(), nonMember.getName(), accessCode, access, refresh);
+        return new NonMemberResponse(nonMember.getUserId(), nonMember.getName(), nonMember.getRole().name(), accessCode, access, refresh);
     }
 
     @Transactional(readOnly = true)
@@ -59,7 +59,7 @@ public class NonMemberService {
         String refresh = jwtTokenProvider.issueRefreshToken(nonMember.getUserId());
         refreshTokenService.save(nonMember.getUserId(), refresh,
                 httpRequest.getRemoteAddr(), httpRequest.getHeader("User-Agent"), null);
-        return new NonMemberResponse(nonMember.getUserId(), nonMember.getName(), nonMember.getAccessCode(), access, refresh);
+        return new NonMemberResponse(nonMember.getUserId(), nonMember.getName(), nonMember.getRole().name(), nonMember.getAccessCode(), access, refresh);
     }
 
     private String generateAccessCode() {

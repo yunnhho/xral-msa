@@ -1,30 +1,23 @@
 package com.xrail.train.dto;
 
-import com.xrail.train.entity.Schedule;
-
 import java.time.LocalDate;
 import java.time.LocalTime;
 
 public record ScheduleResponse(
         Long scheduleId,
-        Long routeId,
-        String routeName,
+        Long trainId,
         String trainNumber,
         String trainType,
+        Long routeId,
+        String routeName,
         LocalDate departureDate,
         LocalTime departureTime,
-        LocalTime arrivalTime
+        LocalTime arrivalTime,
+        StationInfo departureStation,
+        StationInfo arrivalStation,
+        String duration,
+        long estimatedPrice,
+        int availableSeats
 ) {
-    public static ScheduleResponse from(Schedule s) {
-        return new ScheduleResponse(
-                s.getScheduleId(),
-                s.getRoute().getRouteId(),
-                s.getRoute().getName(),
-                s.getTrain().getTrainNumber(),
-                s.getTrain().getTrainType().name(),
-                s.getDepartureDate(),
-                s.getDepartureTime(),
-                s.getArrivalTime()
-        );
-    }
+    public record StationInfo(Long stationId, String name) {}
 }

@@ -121,7 +121,7 @@ public class QueueController {
     }
 
     @Operation(summary = "대기열 이탈", description = "대기열에서 자발적으로 이탈. Redis 대기 목록에서 제거.")
-    @DeleteMapping("/leave")
+    @PostMapping("/leave")
     public ResponseEntity<Void> leave(
             @RequestHeader(Headers.USER_ID) Long userId,
             @RequestParam(defaultValue = "global") String scope) {

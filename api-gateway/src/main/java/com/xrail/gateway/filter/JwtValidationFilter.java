@@ -41,12 +41,19 @@ public class JwtValidationFilter implements GlobalFilter, Ordered {
         }
 
         String authHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
+        String token;
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            token = authHeader.substring(7);
+        } else {
+            // SSE EventSource cannot send Authorization header — accept token query param for /api/queue/subscribe only
+            String queryToken = exchange.getRequest().getQueryParams().getFirst("token");
+            if (queryToken != null && path.equals("/api/queue/subscribe")) {
+                token = queryToken;
+            } else {
+                exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+                return exchange.getResponse().setComplete();
+            }
         }
-
-        String token = authHeader.substring(7);
         Claims claims;
         try {
             claims = jwtVerifier.parseAndValidate(token);

@@ -14,6 +14,10 @@ export function clearAccessToken() {
   memoryAccessToken = null
 }
 
+export function getAccessToken(): string | null {
+  return memoryAccessToken
+}
+
 export function getRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_TOKEN_KEY)
 }

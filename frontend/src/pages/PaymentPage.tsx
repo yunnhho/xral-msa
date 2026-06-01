@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 import client from '../api/client'
@@ -19,13 +19,25 @@ export default function PaymentPage() {
   const [error, setError] = useState('')
   const idempotencyKey = useRef(uuidv4())
 
-  if (!reservation) {
-    navigate('/home')
-    return null
-  }
+  const expiresAtStr = reservation?.expiresAt ?? null
+  const [expiresIn, setExpiresIn] = useState<number | null>(() =>
+    expiresAtStr ? Math.max(0, Math.round((new Date(expiresAtStr).getTime() - Date.now()) / 1000)) : null
+  )
 
-  const expiresAt = reservation.expiresAt ? new Date(reservation.expiresAt) : null
-  const expiresIn = expiresAt ? Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 1000)) : null
+  useEffect(() => {
+    if (!reservation) navigate('/home')
+  }, [reservation, navigate])
+
+  useEffect(() => {
+    if (!expiresAtStr) return
+    const expMs = new Date(expiresAtStr).getTime()
+    const id = setInterval(() => {
+      setExpiresIn(Math.max(0, Math.round((expMs - Date.now()) / 1000)))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [expiresAtStr])
+
+  if (!reservation) return null
 
   const handlePay = async () => {
     setError('')

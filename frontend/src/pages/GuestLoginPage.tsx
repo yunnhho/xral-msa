@@ -19,7 +19,7 @@ export default function GuestLoginPage() {
     setError('')
     setLoading(true)
     try {
-      const { data } = await client.post<ApiResponse<TokenPair>>('/api/auth/guest/login', loginForm)
+      const { data } = await client.post<ApiResponse<TokenPair>>('/api/auth/non-member/login', loginForm)
       if (data.data) {
         login(data.data)
         navigate('/home')
@@ -37,9 +37,10 @@ export default function GuestLoginPage() {
     setError('')
     setLoading(true)
     try {
-      const { data } = await client.post<ApiResponse<{ accessCode: string; accessToken: string; refreshToken: string; role: string; userId: number }>>('/api/auth/guest/register', regForm)
+      const { data } = await client.post<ApiResponse<{ accessCode: string; accessToken: string; refreshToken: string; role: string; userId: number }>>('/api/auth/non-member/register', regForm)
       if (data.data) {
         setAccessCode(data.data.accessCode)
+        setTab('login')
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: ApiResponse<unknown> } })?.response?.data?.message

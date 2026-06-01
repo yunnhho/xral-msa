@@ -1,24 +1,46 @@
 # XRail MSA — 세션 인수인계 컨텍스트
 
 > 이 파일을 다음 세션 시작 시 그대로 붙여넣으면 이전 세션의 맥락을 이어받아 작업할 수 있습니다.
-> 최종 갱신: 2026-05-26 (버그/미완성 항목 일괄 수정 세션)
+> 최종 갱신: 2026-06-01 (Session 5 — 좌석 선택 & 예약 버그 수정)
 
 ---
 
 ## 현재 상태 요약
 
-**진행: M0 ✅ → M1 ✅ → M2 ✅ → M3 ✅ → M4 ✅ → M5 ✅ → M6 ✅ → 빌드검증 ✅ → QueueTokenInterceptor ✅ → M7 ✅ → M8 ✅ → M9 ✅ → 버그수정 ✅**
+**진행: M0 ✅ → M1 ✅ → M2 ✅ → M3 ✅ → M4 ✅ → M5 ✅ → M6 ✅ → 빌드검증 ✅ → QueueTokenInterceptor ✅ → M7 ✅ → M8 ✅ → M9 ✅ → 버그수정 ✅ → S5 버그수정 ✅**
 
-이번 세션에서:
-1. **빌드 검증** — Gradle 8.10 wrapper 생성, 의존성 오류 4건 수정(invalid brave 좌표, Redisson `setIfAbsent` API, `java-library` 플러그인 누락, QueryDSL `QBaseTimeEntity` 생성 누락). 전체 7개 서비스 컴파일 성공.
-2. **QueueTokenInterceptor** — `train-service`에 HMAC-SHA256 큐 토큰 검증 인터셉터 구현 및 `WebMvcConfig` 등록. `POST /api/reservations`에 적용.
-3. **M7** — Kafka Brave tracing 의존성 정비, 모든 서비스 Zipkin docker endpoint 설정, Gateway 5개 서킷브레이커 + fallback, Grafana 대시보드 5패널 JSON.
-4. **M8** — React 19 SPA 구현. axios 인터셉터(토큰 자동 주입 + 401 refresh 재시도), AuthContext(메모리 accessToken + localStorage refreshToken), useQueueStatus hook(SSE → 2회 실패 시 polling fallback), 8개 페이지(Login/Signup/GuestLogin/OAuthCallback/Home/Queue/Seat/Payment/Reservations), React Router v7 full routing. TypeScript 컴파일 오류 0건.
-5. **M9** — JMeter 5.x 테스트 플랜(`docs/jmeter/xrail-load-test.jmx`). 1,000 users / ramp-up 60s / 1 loop. 시나리오: signup → schedule search → queue(polling fallback 포함) → seat → reserve → pay. 실행 가이드 `docs/jmeter/README.md`.
+이번 세션에서(S5 — 2026-06-01):
+1. **BUG-HIGH: SeatController 파라미터 불일치** — `startStationIdx`/`endStationIdx` → `departureStationId`/`arrivalStationId` (API.md 스펙 준수). `SeatService`도 station ID → index 변환으로 교체.
+2. **BUG-HIGH: SeatService 응답 구조 불일치** — flat `List<SeatAvailabilityResponse>` → `SeatsResponse`(carriages 중첩 + price 포함) 신규 DTO 생성.
+3. **BUG-HIGH: ReservationRequest 불일치** — `startStationIdx`/`endStationIdx` → `departureStationId`/`arrivalStationId`. `ReservationService.doCreate`에서 station ID → index 변환 처리.
+4. **BUG-MEDIUM: 동시 예약 시 saga log Lock timeout → 예약 롤백 + Redis 비트 누수** — `sagaLogService.recordOutbound` 호출을 try-catch로 감싸 saga log 실패가 예약 트랜잭션을 롤백하지 않도록 수정.
+5. **BUG-LOW: SeatPage SEAT_ALREADY_TAKEN 시 seat refresh 예외 전파** — catch 블록 내 refresh call을 nested try-catch로 감쌈.
+
+이전 세션에서(버그 수정):
+1. **빌드 검증** — Gradle 8.10 wrapper 생성, 의존성 오류 4건 수정. 전체 7개 서비스 컴파일 성공.
+2. **QueueTokenInterceptor** — `train-service`에 HMAC-SHA256 큐 토큰 검증 인터셉터 구현 및 `WebMvcConfig` 등록.
+3. **M7** — Kafka Brave tracing 의존성 정비, 서킷브레이커 5개 + Grafana 5패널.
+4. **M8** — React 19 SPA 구현. axios 인터셉터, AuthContext, useQueueStatus hook, 8개 페이지.
+5. **M9** — JMeter 테스트 플랜.
 
 ---
 
-## 이번 세션에서 만든/수정한 파일
+## S5 세션에서 만든/수정한 파일
+
+### S5 — 좌석 선택 & 예약 버그 수정 (2026-06-01)
+```
+train-service/src/main/java/.../dto/SeatsResponse.java       — 신규: carriages 중첩 구조 + price
+train-service/src/main/java/.../controller/SeatController.java — 파라미터 departureStationId/arrivalStationId로 변경
+train-service/src/main/java/.../service/SeatService.java      — station ID→index 변환, SeatsResponse 반환
+train-service/src/main/java/.../dto/ReservationRequest.java   — departureStationId/arrivalStationId로 교체
+train-service/src/main/java/.../service/ReservationService.java — station ID→index 변환, saga log 실패 격리
+frontend/src/pages/SeatPage.tsx                               — SEAT_ALREADY_TAKEN refresh 실패 예외 처리
+```
+삭제: `train-service/.../dto/SeatAvailabilityResponse.java` (더 이상 사용 안함)
+
+---
+
+## 이전 세션에서 만든/수정한 파일
 
 ### 빌드 수정
 ```

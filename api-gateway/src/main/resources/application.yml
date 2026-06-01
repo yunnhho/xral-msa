@@ -50,12 +50,22 @@ spring:
                 name: train-service-cb
                 fallbackUri: forward:/fallback/train-service
 
+        - id: queue-service-sse
+          uri: lb://queue-service
+          predicates:
+            - Path=/api/queue/subscribe
+          metadata:
+            response-timeout: -1
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: queue-service-cb
+                fallbackUri: forward:/fallback/queue-service
+
         - id: queue-service
           uri: lb://queue-service
           predicates:
             - Path=/api/queue/**
-          metadata:
-            response-timeout: 0
           filters:
             - name: CircuitBreaker
               args:

@@ -76,12 +76,15 @@ export default function SeatPage() {
       if (code === 'SEAT_ALREADY_TAKEN') {
         setError('선택한 좌석이 이미 예약되었습니다. 다른 좌석을 선택하세요.')
         setSelected(new Set())
-        // Refresh seat map
-        const { data } = await client.get<ApiResponse<SeatsResponse>>(
-          `/api/schedules/${state!.schedule.scheduleId}/seats`,
-          { params: { departureStationId: state!.departureStationId, arrivalStationId: state!.arrivalStationId } },
-        )
-        setCarriages(data.data?.carriages ?? [])
+        try {
+          const { data } = await client.get<ApiResponse<SeatsResponse>>(
+            `/api/schedules/${state!.schedule.scheduleId}/seats`,
+            { params: { departureStationId: state!.departureStationId, arrivalStationId: state!.arrivalStationId } },
+          )
+          setCarriages(data.data?.carriages ?? [])
+        } catch {
+          // refresh failure is non-fatal; user already sees the error message
+        }
       } else {
         setError(resp?.message ?? '예약 실패')
       }

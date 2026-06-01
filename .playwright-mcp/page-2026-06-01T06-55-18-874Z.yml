@@ -1,0 +1,61 @@
+- generic [ref=e63]:
+  - banner [ref=e64]:
+    - generic [ref=e65]: XRail
+    - generic [ref=e66]:
+      - generic [ref=e67]: 테스터
+      - button "내 예매" [ref=e68] [cursor=pointer]
+      - button "로그아웃" [ref=e69] [cursor=pointer]
+  - main [ref=e70]:
+    - generic [ref=e71]:
+      - combobox [ref=e72]:
+        - option "출발역 선택"
+        - option "서울" [selected]
+        - option "대전"
+        - option "동대구"
+        - option "부산"
+      - combobox [ref=e73]:
+        - option "도착역 선택"
+        - option "서울"
+        - option "대전"
+        - option "동대구"
+        - option "부산" [selected]
+      - textbox [ref=e74]: 2026-06-01
+      - button "열차 검색" [ref=e75] [cursor=pointer]
+    - table [ref=e76]:
+      - rowgroup [ref=e77]:
+        - row "열차 출발 도착 소요 가격 잔여석" [ref=e78]:
+          - columnheader "열차" [ref=e79]
+          - columnheader "출발" [ref=e80]
+          - columnheader "도착" [ref=e81]
+          - columnheader "소요" [ref=e82]
+          - columnheader "가격" [ref=e83]
+          - columnheader "잔여석" [ref=e84]
+          - columnheader [ref=e85]
+      - rowgroup [ref=e86]:
+        - row "KTX KTX-001 08:00:00 10:30:00 2h 30m 30,000원 80 선택" [ref=e87]:
+          - cell "KTX KTX-001" [ref=e88]
+          - cell "08:00:00" [ref=e89]
+          - cell "10:30:00" [ref=e90]
+          - cell "2h 30m" [ref=e91]
+          - cell "30,000원" [ref=e92]
+          - cell "80" [ref=e93]
+          - cell "선택" [ref=e94]:
+            - button "선택" [ref=e95] [cursor=pointer]
+        - row "KTX KTX-001 12:00:00 14:30:00 2h 30m 30,000원 80 선택" [ref=e96]:
+          - cell "KTX KTX-001" [ref=e97]
+          - cell "12:00:00" [ref=e98]
+          - cell "14:30:00" [ref=e99]
+          - cell "2h 30m" [ref=e100]
+          - cell "30,000원" [ref=e101]
+          - cell "80" [ref=e102]
+          - cell "선택" [ref=e103]:
+            - button "선택" [ref=e104] [cursor=pointer]
+        - row "KTX KTX-001 16:00:00 18:30:00 2h 30m 30,000원 80 선택" [ref=e105]:
+          - cell "KTX KTX-001" [ref=e106]
+          - cell "16:00:00" [ref=e107]
+          - cell "18:30:00" [ref=e108]
+          - cell "2h 30m" [ref=e109]
+          - cell "30,000원" [ref=e110]
+          - cell "80" [ref=e111]
+          - cell "선택" [ref=e112]:
+            - button "선택" [ref=e113] [cursor=pointer]

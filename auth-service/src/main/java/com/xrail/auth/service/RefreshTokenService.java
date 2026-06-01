@@ -43,18 +43,19 @@ public class RefreshTokenService {
     }
 
     @Transactional
-    public RefreshToken rotate(String rawToken, String ip, String userAgent) {
+    public Long rotate(String rawToken) {
         String hash = sha256(rawToken);
-        RefreshToken old = findValid(hash);
+        RefreshToken old = refreshTokenRepository.findByTokenHash(hash)
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHORIZED));
 
-        if (old.isRevoked()) {
+        if (old.isRevoked() || old.isExpired()) {
             refreshTokenRepository.revokeAllByUserId(old.getUserId(), LocalDateTime.now());
             clearRedis(old.getUserId());
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
         old.revoke();
-        return save(old.getUserId(), rawToken, ip, userAgent, old.getId());
+        return old.getId();
     }
 
     @Transactional

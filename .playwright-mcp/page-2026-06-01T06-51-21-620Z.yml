@@ -1,0 +1,6 @@
+- generic [ref=e64]:
+  - heading "좌석 선택" [level=2] [ref=e65]
+  - paragraph [ref=e66]: KTX KTX-001 | 서울 → 부산 | 08:00:00
+  - generic [ref=e67]:
+    - generic [ref=e68]: "선택: 0석 | 합계: 0원"
+    - button "예약하기" [disabled] [ref=e69] [cursor=pointer]

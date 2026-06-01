@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @Tag(name = "Schedule", description = "열차 스케줄 조회 API")
 @RestController
@@ -23,11 +24,13 @@ public class ScheduleController {
 
     private final ScheduleService scheduleService;
 
-    @Operation(summary = "스케줄 검색", description = "routeId + date(YYYY-MM-DD)로 해당 날짜의 운행 스케줄 목록 조회.")
+    @Operation(summary = "스케줄 검색", description = "출발역/도착역/날짜로 운행 스케줄 목록 조회.")
     @GetMapping
-    public ApiResponse<List<ScheduleResponse>> search(
-            @RequestParam Long routeId,
+    public ApiResponse<Map<String, List<ScheduleResponse>>> search(
+            @RequestParam Long departureStationId,
+            @RequestParam Long arrivalStationId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return ApiResponse.ok(scheduleService.search(routeId, date));
+        List<ScheduleResponse> schedules = scheduleService.search(departureStationId, arrivalStationId, date);
+        return ApiResponse.ok(Map.of("schedules", schedules));
     }
 }

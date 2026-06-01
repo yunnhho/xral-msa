@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import client from '../api/client'
+import client, { getAccessToken } from '../api/client'
 import type { ApiResponse, QueueStatus } from '../types/api'
 
 const POLL_INTERVAL_MS = 2000
@@ -60,7 +60,9 @@ export function useQueueStatus(scope: string, enabled: boolean): UseQueueStatusR
     sseErrorCount.current = 0
     setMode('sse')
 
-    const es = new EventSource(`/api/queue/subscribe?scope=${scope}`, {
+    const token = getAccessToken()
+    const tokenParam = token ? `&token=${encodeURIComponent(token)}` : ''
+    const es = new EventSource(`/api/queue/subscribe?scope=${scope}${tokenParam}`, {
       withCredentials: true,
     } as EventSourceInit)
     esRef.current = es
