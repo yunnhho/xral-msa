@@ -24,10 +24,15 @@ import java.util.List;
 public class JwtValidationFilter implements GlobalFilter, Ordered {
 
     private static final List<String> PERMIT_PATTERNS = List.of(
-            "/api/auth/**",
+            "/api/auth/login",
+            "/api/auth/signup",
+            "/api/auth/refresh",
+            "/api/auth/non-member/register",
+            "/api/auth/non-member/login",
             "/oauth2/**",
             "/login/oauth2/**",
-            "/actuator/**"
+            "/actuator/health",
+            "/actuator/prometheus"
     );
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 

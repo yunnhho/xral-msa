@@ -128,16 +128,19 @@ public class ReservationService {
 
         // 5. Saga log + Kafka emit
         MDC.put("userId", String.valueOf(userId));
-        eventProducer.publishReservationCreated(reservation, tickets, startIdx, endIdx);
-        eventProducer.publishSeatLocked(reservation, request.seatIds(), request.scheduleId());
         try {
-            sagaLogService.recordOutbound(reservation.getReservationId(), Topics.RESERVATION_CREATED, reservation.getReservationId());
-        } catch (Exception e) {
-            // Saga log is non-critical; do not roll back the reservation
-            log.warn("Saga log write failed reservationId={} reason={}", reservation.getReservationId(), e.getMessage());
+            eventProducer.publishReservationCreated(reservation, tickets, startIdx, endIdx);
+            eventProducer.publishSeatLocked(reservation, request.seatIds(), request.scheduleId());
+            try {
+                sagaLogService.recordOutbound(reservation.getReservationId(), Topics.RESERVATION_CREATED, reservation.getReservationId());
+            } catch (Exception e) {
+                // Saga log is non-critical; do not roll back the reservation
+                log.warn("Saga log write failed reservationId={} reason={}", reservation.getReservationId(), e.getMessage());
+            }
+            log.info("Reservation created reservationId={} userId={} seats={}", reservation.getReservationId(), userId, request.seatIds());
+        } finally {
+            MDC.remove("userId");
         }
-
-        log.info("Reservation created reservationId={} userId={} seats={}", reservation.getReservationId(), userId, request.seatIds());
         return toResponse(reservation, tickets);
     }
 

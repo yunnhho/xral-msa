@@ -26,7 +26,9 @@ export default function SignupPage() {
     setError('')
     setLoading(true)
     try {
-      await client.post<ApiResponse<unknown>>('/api/auth/signup', form)
+      await client.post<ApiResponse<unknown>>('/api/auth/signup', form, {
+        headers: { 'X-Captcha-Token': btoa(String(Date.now())) },
+      })
       navigate('/login', { state: { signupSuccess: true } })
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: ApiResponse<unknown> } })?.response?.data?.message

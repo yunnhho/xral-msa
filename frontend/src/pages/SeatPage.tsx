@@ -38,7 +38,13 @@ export default function SeatPage() {
         params: { departureStationId, arrivalStationId }, signal,
       })
       .then(({ data }) => { setCarriages(data.data?.carriages ?? []); setLoading(false) })
-      .catch(err => { if (!signal?.aborted) { setError(String(err)); setLoading(false) } })
+      .catch(err => {
+        if (!signal?.aborted) {
+          const msg = (err as { response?: { data?: ApiResponse<unknown> } })?.response?.data?.message ?? '좌석 정보를 불러오지 못했습니다.'
+          setError(msg)
+          setLoading(false)
+        }
+      })
   }
 
   useEffect(() => {
@@ -261,7 +267,6 @@ export default function SeatPage() {
         </button>
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }

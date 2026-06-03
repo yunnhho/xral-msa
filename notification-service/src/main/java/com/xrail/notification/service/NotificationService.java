@@ -1,5 +1,6 @@
 package com.xrail.notification.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xrail.notification.channel.NotificationChannel;
 import com.xrail.notification.entity.NotificationLog;
@@ -32,7 +33,7 @@ public class NotificationService {
         String payloadJson;
         try {
             payloadJson = objectMapper.writeValueAsString(payload);
-        } catch (Exception e) {
+        } catch (JsonProcessingException e) {
             log.error("Failed to serialize payload for correlationId={}", correlationId, e);
             return;
         }

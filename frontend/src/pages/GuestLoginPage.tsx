@@ -35,7 +35,12 @@ export default function GuestLoginPage() {
     e.preventDefault(); setError(''); setLoading(true)
     try {
       const { data } = await client.post<ApiResponse<{ accessCode: string }>>('/api/auth/non-member/register', regForm)
-      if (data.data) { setAccessCode(data.data.accessCode); setTab('login'); setError('') }
+      if (data.data) {
+        setAccessCode(data.data.accessCode)
+        setLoginForm(f => ({ ...f, accessCode: data.data!.accessCode }))
+        setTab('login')
+        setError('')
+      }
     } catch (err: unknown) {
       setError((err as { response?: { data?: ApiResponse<unknown> } })?.response?.data?.message ?? '가입 실패')
     } finally { setLoading(false) }

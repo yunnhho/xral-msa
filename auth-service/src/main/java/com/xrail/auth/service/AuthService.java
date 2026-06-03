@@ -72,9 +72,12 @@ public class AuthService {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
 
+        Long userId = Long.parseLong(claims.getSubject());
+        if (refreshTokenService.isBlacklisted(userId)) {
+            throw new BusinessException(ErrorCode.TOKEN_REVOKED);
+        }
         Long oldTokenId = refreshTokenService.rotate(request.refreshToken());
 
-        Long userId = Long.parseLong(claims.getSubject());
         Member member = memberRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 

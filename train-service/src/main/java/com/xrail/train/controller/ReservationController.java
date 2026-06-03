@@ -1,6 +1,8 @@
 package com.xrail.train.controller;
 
 import com.xrail.common.dto.ApiResponse;
+import com.xrail.common.exception.BusinessException;
+import com.xrail.common.exception.ErrorCode;
 import com.xrail.common.header.Headers;
 import com.xrail.train.dto.ReservationRequest;
 import com.xrail.train.dto.ReservationResponse;
@@ -38,7 +40,8 @@ public class ReservationController {
     @Operation(summary = "내 예약 목록 조회", description = "로그인 사용자의 전체 예약 목록 반환. page/size 파라미터는 무시됨 (전체 반환).")
     @GetMapping
     public ApiResponse<List<ReservationResponse>> listMine(
-            @RequestHeader(Headers.USER_ID) Long userId) {
+            @RequestHeader(value = Headers.USER_ID, required = false) Long userId) {
+        if (userId == null) throw new BusinessException(ErrorCode.FORBIDDEN);
         return ApiResponse.ok(reservationService.listByUser(userId));
     }
 

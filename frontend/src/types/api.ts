@@ -6,14 +6,6 @@ export interface ApiResponse<T> {
   timestamp: string
 }
 
-export interface PageResponse<T> {
-  content: T[]
-  page: number
-  size: number
-  totalElements: number
-  totalPages: number
-}
-
 // Auth — matches backend LoginResponse (flat structure)
 export interface TokenPair {
   userId: number
@@ -30,34 +22,10 @@ export interface MeResponse {
   role: string
 }
 
-export interface GuestRegisterResponse {
-  userId: number
-  accessCode: string
-  accessToken: string
-  refreshToken: string
-  role: string
-}
-
 // Station / Schedule
 export interface Station {
   stationId: number
   name: string
-}
-
-export interface RouteStation extends Station {
-  sequence: number
-  cumulativeDistance: number
-}
-
-export interface Route {
-  routeId: number
-  name: string
-  stations: RouteStation[]
-}
-
-export interface StationsResponse {
-  stations: Station[]
-  routes: Route[]
 }
 
 export interface Schedule {
@@ -108,7 +76,7 @@ export interface TicketSummary {
 export interface Reservation {
   reservationId: number
   userId: number
-  status: 'PENDING' | 'PAID' | 'CANCELLED'
+  status: 'PENDING' | 'PAID' | 'CANCELLED' | 'EXPIRED'
   totalPrice: number
   reservedAt: string
   expiresAt?: string
@@ -126,16 +94,6 @@ export interface QueueStatus {
   expiresAt?: string
 }
 
-// Coupon
-export interface CouponValidateResponse {
-  code: string
-  type: 'PERCENT' | 'FIXED'
-  discountValue: number
-  discountAmount: number
-  finalAmount: number
-  description: string
-}
-
 // Payment
 export interface PaymentResult {
   paymentId: number
@@ -147,13 +105,3 @@ export interface PaymentResult {
   completedAt?: string
 }
 
-// Notification
-export interface Notification {
-  notificationId: number
-  channel: string
-  template: string
-  title: string
-  body: string
-  createdAt: string
-  readAt: string | null
-}

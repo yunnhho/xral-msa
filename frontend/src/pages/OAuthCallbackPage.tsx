@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { setAccessToken, setRefreshToken } from '../api/client'
+import { setAccessToken, setRefreshToken, clearAccessToken, clearRefreshToken } from '../api/client'
 import client from '../api/client'
 import type { ApiResponse, MeResponse } from '../types/api'
 import { C } from '../styles/theme'
@@ -19,10 +19,20 @@ export default function OAuthCallbackPage() {
     setRefreshToken(refreshToken)
     client.get<ApiResponse<MeResponse>>('/api/auth/me')
       .then(({ data }) => {
-        if (data.data) login({ userId: data.data.userId, name: data.data.name, role: data.data.role, accessToken, refreshToken })
+        if (data.data) {
+          login({ userId: data.data.userId, name: data.data.name, role: data.data.role, accessToken, refreshToken })
+          navigate('/home')
+        } else {
+          clearAccessToken()
+          clearRefreshToken()
+          navigate('/login', { state: { oauthFailed: true } })
+        }
       })
-      .catch(() => {})
-      .finally(() => navigate('/home'))
+      .catch(() => {
+        clearAccessToken()
+        clearRefreshToken()
+        navigate('/login', { state: { oauthFailed: true } })
+      })
   }, [params, login, navigate])
 
   return (

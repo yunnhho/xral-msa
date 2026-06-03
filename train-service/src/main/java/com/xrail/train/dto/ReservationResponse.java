@@ -3,7 +3,8 @@ package com.xrail.train.dto;
 import com.xrail.train.entity.Reservation;
 import com.xrail.train.entity.Ticket;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
@@ -12,8 +13,8 @@ public record ReservationResponse(
         Long userId,
         String status,
         Long totalPrice,
-        LocalDateTime reservedAt,
-        LocalDateTime expiresAt,
+        OffsetDateTime reservedAt,
+        OffsetDateTime expiresAt,
         List<TicketSummary> tickets
 ) {
     public record TicketSummary(Long ticketId, Long seatId, String seatNumber, Long price) {}
@@ -31,8 +32,8 @@ public record ReservationResponse(
                 r.getUserId(),
                 r.getStatus().name(),
                 r.getTotalPrice(),
-                r.getReservedAt(),
-                r.getExpiresAt(),
+                r.getReservedAt().atOffset(ZoneOffset.UTC),
+                r.getExpiresAt() != null ? r.getExpiresAt().atOffset(ZoneOffset.UTC) : null,
                 summaries
         );
     }

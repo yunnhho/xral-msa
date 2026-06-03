@@ -1,6 +1,8 @@
 package com.xrail.train.controller;
 
 import com.xrail.common.dto.ApiResponse;
+import com.xrail.common.exception.BusinessException;
+import com.xrail.common.exception.ErrorCode;
 import com.xrail.train.dto.ScheduleResponse;
 import com.xrail.train.service.ScheduleService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,6 +32,9 @@ public class ScheduleController {
             @RequestParam Long departureStationId,
             @RequestParam Long arrivalStationId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        if (departureStationId.equals(arrivalStationId)) {
+            throw new BusinessException(ErrorCode.INVALID_ROUTE);
+        }
         List<ScheduleResponse> schedules = scheduleService.search(departureStationId, arrivalStationId, date);
         return ApiResponse.ok(Map.of("schedules", schedules));
     }

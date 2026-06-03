@@ -55,7 +55,7 @@ export default function QueuePage() {
     try {
       const { data } = await client.post<ApiResponse<QueueStatus>>(
         '/api/queue/token', { scope: 'global' },
-        { headers: { 'X-Captcha-Token': 'c_stub:0000', 'Idempotency-Key': idempotencyKey.current } },
+        { headers: { 'X-Captcha-Token': btoa(String(Date.now())), 'Idempotency-Key': idempotencyKey.current } },
       )
       if (data.data?.status === 'ACTIVE' && data.data.queueToken) {
         navigate('/seats', {
@@ -186,11 +186,6 @@ export default function QueuePage() {
         </div>
       </div>
 
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg) } }
-        @keyframes progress { 0% { width: 10%; } 50% { width: 80%; } 100% { width: 10%; } }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-      `}</style>
     </div>
   )
 }

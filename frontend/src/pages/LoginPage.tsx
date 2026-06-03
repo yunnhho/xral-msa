@@ -9,7 +9,8 @@ export default function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const signupSuccess = (location.state as { signupSuccess?: boolean } | null)?.signupSuccess
+  const signupSuccess = (location.state as { signupSuccess?: boolean; oauthFailed?: boolean } | null)?.signupSuccess
+  const oauthFailed = (location.state as { signupSuccess?: boolean; oauthFailed?: boolean } | null)?.oauthFailed
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -42,6 +43,11 @@ export default function LoginPage() {
           {signupSuccess && (
             <div style={{ background: C.successBg, border: `1px solid #86efac`, color: C.success, borderRadius: 8, padding: '12px 16px', marginBottom: 20, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
               ✓ 회원가입이 완료되었습니다. 로그인해주세요.
+            </div>
+          )}
+          {oauthFailed && (
+            <div style={{ background: C.dangerBg, border: `1px solid #fca5a5`, color: C.danger, borderRadius: 8, padding: '12px 16px', marginBottom: 20, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+              소셜 로그인 처리 중 오류가 발생했습니다. 다시 시도해주세요.
             </div>
           )}
 

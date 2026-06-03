@@ -4,6 +4,7 @@ import com.xrail.common.header.Headers;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
@@ -12,8 +13,13 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 
+/**
+ * T2 step 1: HMAC 서명 검증 + 만료 체크 + 일회성(S5-D) 토큰 확인.
+ * Redis key: queue:token:used:{hmacPart} TTL = activeTtlSeconds (DB 1)
+ */
 @Slf4j
 @Component
 public class QueueTokenInterceptor implements HandlerInterceptor {
@@ -23,6 +29,12 @@ public class QueueTokenInterceptor implements HandlerInterceptor {
 
     @Value("${queue.active-ttl-seconds:600}")
     private int activeTtlSeconds;
+
+    private final RedissonClient redissonClient;
+
+    public QueueTokenInterceptor(RedissonClient redissonClient) {
+        this.redissonClient = redissonClient;
+    }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
@@ -52,7 +64,35 @@ public class QueueTokenInterceptor implements HandlerInterceptor {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid or expired queue token");
             return false;
         }
+
+        // S5-D: 이미 사용된 토큰 차단 (일회성)
+        String hmacPart = token.substring(0, token.lastIndexOf('.'));
+        String usedKey = "queue:token:used:" + hmacPart;
+        if (redissonClient.getBucket(usedKey).isExists()) {
+            log.warn("Queue token already used userId={} scope={}", userId, scope);
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Queue token already used");
+            return false;
+        }
+
+        // 토큰 정보를 afterCompletion에서 사용할 수 있도록 요청에 보관
+        request.setAttribute("queueTokenUsedKey", usedKey);
         return true;
+    }
+
+    /**
+     * S5-D: 예약 생성 성공 시(2xx) 토큰을 사용 완료 처리.
+     */
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response,
+                                Object handler, Exception ex) {
+        if (!HttpMethod.POST.matches(request.getMethod())) return;
+        String usedKey = (String) request.getAttribute("queueTokenUsedKey");
+        if (usedKey == null) return;
+
+        boolean success = ex == null && response.getStatus() >= 200 && response.getStatus() < 300;
+        if (success) {
+            redissonClient.getBucket(usedKey).set("1", Duration.ofSeconds(activeTtlSeconds));
+        }
     }
 
     private boolean validateToken(Long userId, String scope, String token) {

@@ -9,6 +9,7 @@ const STATUS: Record<string, { label: string; color: string; bar: string; bg: st
   PENDING:   { label: '결제 대기', color: '#b45309', bar: '#f59e0b', bg: '#fffbeb' },
   PAID:      { label: '결제 완료', color: '#065f46', bar: '#10b981', bg: '#ecfdf5' },
   CANCELLED: { label: '취소',     color: '#64748b', bar: '#cbd5e1', bg: '#f8fafc' },
+  EXPIRED:   { label: '기간 만료', color: '#64748b', bar: '#cbd5e1', bg: '#f8fafc' },
 }
 
 export default function ReservationsPage() {
@@ -67,8 +68,8 @@ export default function ReservationsPage() {
   const isExpired = (r: Reservation) =>
     r.status === 'PENDING' && r.expiresAt != null && new Date(r.expiresAt) < new Date()
 
-  const active = reservations.filter(r => r.status !== 'CANCELLED' && !isExpired(r))
-  const cancelled = reservations.filter(r => r.status === 'CANCELLED')
+  const active = reservations.filter(r => r.status !== 'CANCELLED' && r.status !== 'EXPIRED' && !isExpired(r))
+  const cancelled = reservations.filter(r => r.status === 'CANCELLED' || r.status === 'EXPIRED')
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
@@ -128,7 +129,6 @@ export default function ReservationsPage() {
           </>
         )}
       </div>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }
