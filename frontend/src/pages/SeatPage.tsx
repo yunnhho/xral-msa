@@ -36,6 +36,7 @@ export default function SeatPage() {
     client
       .get<ApiResponse<SeatsResponse>>(`/api/schedules/${schedule.scheduleId}/seats`, {
         params: { departureStationId, arrivalStationId }, signal,
+        headers: { 'X-Queue-Token': state.queueToken },
       })
       .then(({ data }) => { setCarriages(data.data?.carriages ?? []); setLoading(false) })
       .catch(err => {

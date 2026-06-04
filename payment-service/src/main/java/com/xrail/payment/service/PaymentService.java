@@ -5,6 +5,7 @@ import com.xrail.common.exception.ErrorCode;
 import com.xrail.common.kafka.Topics;
 import com.xrail.common.kafka.event.PaymentCompletedEvent;
 import com.xrail.common.kafka.event.PaymentFailedEvent;
+import com.xrail.common.kafka.event.PaymentRefundedEvent;
 import com.xrail.common.kafka.event.PaymentRequestedEvent;
 import com.xrail.payment.dto.PaymentRequest;
 import com.xrail.payment.dto.PaymentResponse;
@@ -18,7 +19,6 @@ import org.redisson.api.RBucket;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.slf4j.MDC;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,23 +36,24 @@ public class PaymentService {
 
     private static final String IDEM_KEY_PREFIX = "payment:idem:";
     private static final String LOCK_KEY_PREFIX = "payment:lock:";
+    private static final String OUTBOX_AGGREGATE = "Payment";
 
     private final PaymentRepository paymentRepository;
     private final PaymentGateway paymentGateway;
     private final RedissonClient redissonClient;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final OutboxRecorder outboxRecorder;
     private final MeterRegistry meterRegistry;
     private final TransactionTemplate txTemplate;
     private final CouponService couponService;
 
     public PaymentService(PaymentRepository paymentRepository, PaymentGateway paymentGateway,
-                          RedissonClient redissonClient, KafkaTemplate<String, Object> kafkaTemplate,
+                          RedissonClient redissonClient, OutboxRecorder outboxRecorder,
                           MeterRegistry meterRegistry, PlatformTransactionManager txManager,
                           CouponService couponService) {
         this.paymentRepository = paymentRepository;
         this.paymentGateway = paymentGateway;
         this.redissonClient = redissonClient;
-        this.kafkaTemplate = kafkaTemplate;
+        this.outboxRecorder = outboxRecorder;
         this.meterRegistry = meterRegistry;
         this.txTemplate = new TransactionTemplate(txManager);
         this.couponService = couponService;
@@ -147,7 +148,7 @@ public class PaymentService {
         if (pgResult.success()) {
             payment.complete(pgResult.providerTxnId());
             meterRegistry.counter("xrail.payment.completed.total").increment();
-            // P4 TODO: Transactional Outbox 패턴 도입 시 여기서 outbox 저장
+            // P4: outbox에 기록 — 이 트랜잭션 커밋 후 relay가 Kafka로 발행 (이벤트 유실 0)
             publishPaymentCompleted(payment);
             log.info("Payment completed paymentId={} reservationId={}", payment.getId(), payment.getReservationId());
         } else {
@@ -176,7 +177,37 @@ public class PaymentService {
         return PaymentResponse.of(payment);
     }
 
-    // ===== Kafka publishers =====
+    /**
+     * 환불 사가: train-service의 payment.refund-requested 수신 시 호출.
+     * 멱등: 이미 CANCELLED이거나 COMPLETED 결제가 없으면 no-op. 환불 PG 실패는 throw → DLT 재시도.
+     * 동일 reservationId 이벤트는 같은 파티션에서 순차 처리되므로 동시 이중환불은 발생하지 않는다.
+     */
+    @Transactional
+    public void refund(Long reservationId, String reason) {
+        Payment payment = paymentRepository
+                .findFirstByReservationIdAndStatus(reservationId, PaymentStatus.COMPLETED)
+                .orElse(null);
+        if (payment == null) {
+            // 이미 환불됨(CANCELLED) 또는 결제된 적 없음 → 멱등 no-op
+            log.info("환불 대상 COMPLETED 결제 없음 — 멱등 처리 reservationId={}", reservationId);
+            return;
+        }
+
+        long refundAmount = payment.getAmount() - payment.getDiscountAmount();
+        PaymentGateway.PgResult pgResult = paymentGateway.refund(payment.getId(), refundAmount);
+        if (!pgResult.success()) {
+            // PG 환불 실패 → 예외로 Kafka 재시도/DLT 격리
+            throw new BusinessException(ErrorCode.PAYMENT_FAILED);
+        }
+
+        payment.cancel();
+        meterRegistry.counter("xrail.payment.refunded.total").increment();
+        publishPaymentRefunded(payment, refundAmount);
+        log.info("Payment refunded paymentId={} reservationId={} amount={} reason={}",
+                payment.getId(), reservationId, refundAmount, reason);
+    }
+
+    // ===== Kafka publishers (P4: outbox 경유) =====
 
     private void publishPaymentRequested(Payment payment, String idempotencyKey) {
         PaymentRequestedEvent event = new PaymentRequestedEvent(
@@ -190,7 +221,7 @@ public class PaymentService {
                 payment.getMethod(),
                 idempotencyKey
         );
-        kafkaTemplate.send(Topics.PAYMENT_REQUESTED, String.valueOf(payment.getReservationId()), event);
+        record(Topics.PAYMENT_REQUESTED, payment.getReservationId(), event);
     }
 
     private void publishPaymentCompleted(Payment payment) {
@@ -204,7 +235,7 @@ public class PaymentService {
                 payment.getAmount(),
                 payment.getProviderTxnId()
         );
-        kafkaTemplate.send(Topics.PAYMENT_COMPLETED, String.valueOf(payment.getReservationId()), event);
+        record(Topics.PAYMENT_COMPLETED, payment.getReservationId(), event);
     }
 
     private void publishPaymentFailed(Payment payment, String reason) {
@@ -218,6 +249,24 @@ public class PaymentService {
                 payment.getAmount(),
                 reason
         );
-        kafkaTemplate.send(Topics.PAYMENT_FAILED, String.valueOf(payment.getReservationId()), event);
+        record(Topics.PAYMENT_FAILED, payment.getReservationId(), event);
+    }
+
+    private void publishPaymentRefunded(Payment payment, long refundAmount) {
+        PaymentRefundedEvent event = new PaymentRefundedEvent(
+                UUID.randomUUID().toString(),
+                Instant.now().toString(),
+                MDC.get("traceId"),
+                payment.getId(),
+                payment.getReservationId(),
+                payment.getUserId(),
+                refundAmount
+        );
+        record(Topics.PAYMENT_REFUNDED, payment.getReservationId(), event);
+    }
+
+    private void record(String topic, Long reservationId, Object event) {
+        outboxRecorder.record(OUTBOX_AGGREGATE, String.valueOf(reservationId), topic,
+                String.valueOf(reservationId), event);
     }
 }

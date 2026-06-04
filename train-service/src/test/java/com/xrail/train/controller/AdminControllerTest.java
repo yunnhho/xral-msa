@@ -53,7 +53,7 @@ class AdminControllerTest {
     @Test
     void reservationStats_nonAdmin_forbidden() throws Exception {
         mockMvc.perform(get("/api/admin/reservations/stats")
-                        .header(Headers.USER_ROLE, "USER"))
+                        .header(Headers.USER_ROLE, "ROLE_MEMBER"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
@@ -64,7 +64,7 @@ class AdminControllerTest {
                 .thenReturn(new ReservationStatsResponse(10, 3, 5, 2, 150_000));
 
         mockMvc.perform(get("/api/admin/reservations/stats")
-                        .header(Headers.USER_ROLE, "ADMIN"))
+                        .header(Headers.USER_ROLE, "ROLE_ADMIN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(10))
                 .andExpect(jsonPath("$.data.paid").value(5))
@@ -77,7 +77,7 @@ class AdminControllerTest {
         when(sagaLogService.findLogs(any(), any())).thenReturn((Page) empty);
 
         mockMvc.perform(get("/api/admin/saga-logs")
-                        .header(Headers.USER_ROLE, "ADMIN"))
+                        .header(Headers.USER_ROLE, "ROLE_ADMIN"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.content").isArray());
     }
@@ -85,7 +85,7 @@ class AdminControllerTest {
     @Test
     void cancelReservation_admin_invokesServiceAndReturns204() throws Exception {
         mockMvc.perform(post("/api/admin/reservations/{id}/cancel", 7L)
-                        .header(Headers.USER_ROLE, "ADMIN"))
+                        .header(Headers.USER_ROLE, "ROLE_ADMIN"))
                 .andExpect(status().isNoContent());
 
         verify(reservationService).cancelByAdmin(eq(7L));
@@ -94,7 +94,7 @@ class AdminControllerTest {
     @Test
     void cancelReservation_nonAdmin_forbidden() throws Exception {
         mockMvc.perform(post("/api/admin/reservations/{id}/cancel", 7L)
-                        .header(Headers.USER_ROLE, "USER"))
+                        .header(Headers.USER_ROLE, "ROLE_MEMBER"))
                 .andExpect(status().isForbidden());
     }
 }

@@ -10,6 +10,7 @@ export default function NavBar() {
   const links = [
     { label: '승차권 예매', path: '/home' },
     { label: '예매 내역', path: '/reservations' },
+    ...(user?.role === 'ROLE_ADMIN' ? [{ label: '운영자', path: '/admin' }] : []),
   ]
 
   return (

@@ -127,6 +127,35 @@ class QueueTokenInterceptorTest {
     }
 
     @Test
+    void seatQuery_validToken_passesWithoutConsuming() throws Exception {
+        String token = buildToken(USER_ID, "global", System.currentTimeMillis());
+
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/schedules/5/seats");
+        req.addHeader("X-Queue-Token", token);
+        req.addHeader("X-User-Id", String.valueOf(USER_ID));
+        MockHttpServletResponse res = new MockHttpServletResponse();
+
+        boolean result = interceptor.preHandle(req, res, null);
+
+        // 검증만 통과 — 토큰을 소비하지 않으므로 used 버킷 조회/예약 표시 없음
+        assertThat(result).isTrue();
+        assertThat(req.getAttribute("queueTokenUsedKey")).isNull();
+        verify(redissonClient, never()).getBucket(anyString());
+    }
+
+    @Test
+    void seatQuery_missingToken_returns401() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/schedules/5/seats");
+        req.addHeader("X-User-Id", String.valueOf(USER_ID));
+        MockHttpServletResponse res = new MockHttpServletResponse();
+
+        boolean result = interceptor.preHandle(req, res, null);
+
+        assertThat(result).isFalse();
+        assertThat(res.getStatus()).isEqualTo(401);
+    }
+
+    @Test
     void validToken_firstUse_passesThrough() throws Exception {
         String token = buildToken(USER_ID, "global", System.currentTimeMillis());
         String hmacPart = token.substring(0, token.lastIndexOf('.'));

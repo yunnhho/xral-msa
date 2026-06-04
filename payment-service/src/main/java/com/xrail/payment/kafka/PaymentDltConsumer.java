@@ -26,13 +26,23 @@ public class PaymentDltConsumer {
 
     @KafkaListener(topics = Topics.PAYMENT_COMPLETED_DLT, groupId = "payment-dlt-service")
     public void handleDlt(ConsumerRecord<String, Object> record) {
+        persistAlert(record, "payment.completed 처리 실패");
+    }
+
+    @KafkaListener(topics = Topics.PAYMENT_REFUND_REQUESTED_DLT, groupId = "payment-dlt-service")
+    public void handleRefundDlt(ConsumerRecord<String, Object> record) {
+        // 환불 실패는 금전 관련 — 운영자 즉시 확인 필요
+        persistAlert(record, "payment.refund-requested 처리 실패 (환불 누락 위험)");
+    }
+
+    private void persistAlert(ConsumerRecord<String, Object> record, String label) {
         String traceId = extractHeader(record, "traceId");
         if (traceId == null) traceId = UUID.randomUUID().toString();
         MDC.put("traceId", traceId);
         try {
             String errorMessage = extractDltErrorHeader(record);
-            log.error("[DLT][payment-service] payment.completed 처리 실패. topic={} partition={} offset={} key={} error={}",
-                    record.topic(), record.partition(), record.offset(), record.key(), errorMessage);
+            log.error("[DLT][payment-service] {}. topic={} partition={} offset={} key={} error={}",
+                    label, record.topic(), record.partition(), record.offset(), record.key(), errorMessage);
 
             try {
                 dltAlertLogRepository.save(DltAlertLog.builder()

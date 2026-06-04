@@ -30,6 +30,24 @@ spring:
             allowCredentials: true
             maxAge: 3600
       routes:
+        # 운영자(admin) 라우트 — 서비스별 prefix를 catch-all(admin-train)보다 먼저 평가해야 한다.
+        - id: admin-payment-service
+          uri: lb://payment-service
+          predicates:
+            - Path=/api/admin/payments/**
+        - id: admin-notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/admin/notifications/**
+        - id: admin-queue-service
+          uri: lb://queue-service
+          predicates:
+            - Path=/api/admin/queue/**
+        - id: admin-train-service
+          uri: lb://train-service
+          predicates:
+            - Path=/api/admin/**
+
         - id: auth-service
           uri: lb://auth-service
           predicates:

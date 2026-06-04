@@ -25,8 +25,10 @@
 - Mock PG 로직은 `MockPaymentGateway` 같은 별도 클래스로 분리. `PaymentService` 내부에 인라인 작성 금지.
 - 실 PG 어댑터 도입 시 Mock과 동일한 인터페이스(`PaymentGateway`)를 구현. 서비스 코드 변경 최소화.
 
-### P4. Kafka 이벤트
-- `payment.completed` 발행 후 트랜잭션 커밋 실패 시 이벤트만 발행된 상태가 된다 — Transactional Outbox 패턴 고려 대상 (1차 deferred, 주석으로 TODO 표시).
+### P4. Kafka 이벤트 (Transactional Outbox)
+- 모든 결제 이벤트(`payment.requested/completed/failed/refunded`)는 직접 발행하지 않고 `OutboxRecorder`로 `outbox_events`에 기록한다 — 비즈니스 트랜잭션과 같은 트랜잭션에서 INSERT되어 DB 커밋과 발행의 원자성을 보장(이벤트 유실 0). 실제 발행은 `OutboxRelayScheduler`가 커밋 후 폴링하여 수행(at-least-once → 컨슈머 멱등으로 안전).
+- relay는 저장된 payload를 원래 이벤트 FQCN으로 역직렬화 후 `KafkaTemplate`으로 보낸다 — JsonSerializer `__TypeId__` 헤더가 직접 발행과 동일하게 부여되어 컨슈머 호환.
+- 단일 인스턴스 가정(relay에 SKIP LOCKED 미적용). 다중 인스턴스 확장 시 중복 발행은 멱등으로 흡수되나 효율을 위해 락 도입 검토.
 - `payment.requested`는 감사(audit) 전용. 다른 서비스가 이 이벤트로 비즈니스 로직을 실행하면 안 된다.
 
 ### P5. DLT 처리
@@ -39,5 +41,6 @@
 - 결제 금액 검증은 `POST /api/payments` 요청 body의 `amount`와 이벤트/헤더의 값을 비교. train DB 조회로 검증하지 않는다.
 
 ### P7. 상태 전이
-- `Payment.status` 전이: `REQUESTED → COMPLETED | FAILED`. COMPLETED → CANCELLED는 환불 시 (1차 deferred).
-- 이미 `COMPLETED`인 결제를 `FAILED`로 변경 금지. 상태 전이 위반 시 예외 throw.
+- `Payment.status` 전이: `REQUESTED → COMPLETED | FAILED`, `COMPLETED → CANCELLED`(환불).
+- 환불은 `payment.refund-requested`(train이 PAID 예약 취소 시 발행) 컨슈머가 `PaymentService.refund`로 처리: COMPLETED 결제만 PG 환불 → `Payment.cancel()`(COMPLETED→CANCELLED) → `payment.refunded` 발행. 멱등(이미 CANCELLED면 no-op), PG 환불 실패는 throw → DLT.
+- `Payment.cancel()`은 COMPLETED 상태에서만 허용(그 외 IllegalStateException). 이미 `COMPLETED`인 결제를 `FAILED`로 변경 금지.

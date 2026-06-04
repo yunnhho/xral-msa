@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import AdminPage from './pages/AdminPage'
 import GuestLoginPage from './pages/GuestLoginPage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
@@ -16,6 +17,13 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
 }
 
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth()
+  if (isLoading) return <div style={{ textAlign: 'center', marginTop: 100 }}>로딩 중...</div>
+  if (!user) return <Navigate to="/login" replace />
+  return user.role === 'ROLE_ADMIN' ? <>{children}</> : <Navigate to="/home" replace />
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -29,6 +37,7 @@ function AppRoutes() {
       <Route path="/seats" element={<RequireAuth><SeatPage /></RequireAuth>} />
       <Route path="/payment" element={<RequireAuth><PaymentPage /></RequireAuth>} />
       <Route path="/reservations" element={<RequireAuth><ReservationsPage /></RequireAuth>} />
+      <Route path="/admin" element={<RequireAdmin><AdminPage /></RequireAdmin>} />
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
   )

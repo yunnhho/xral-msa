@@ -34,6 +34,9 @@ queue:
     batch-size: 100
   # 활성 토큰 TTL (초)
   active-ttl-seconds: 600
+  # 입장 제어(AUTO 모드): 동시 active 인원이 이 값 미만이고 대기자가 없으면 즉시 입장(평시 우회)
+  admission:
+    max-active: 100
   sse:
     heartbeat-seconds: 25
     heartbeat-ms: 25000

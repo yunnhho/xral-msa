@@ -105,3 +105,62 @@ export interface PaymentResult {
   completedAt?: string
 }
 
+// ===== Admin =====
+export interface Page<T> {
+  content: T[]
+  totalPages: number
+  totalElements: number
+  number: number
+}
+
+export interface ReservationStats {
+  total: number
+  pending: number
+  paid: number
+  cancelled: number
+  paidRevenue: number
+}
+
+export interface PaymentStats {
+  total: number
+  requested: number
+  completed: number
+  failed: number
+  cancelled: number
+  revenue: number
+  refundedAmount: number
+}
+
+export interface NotificationStats {
+  total: number
+  sent: number
+  pending: number
+  failed: number
+}
+
+export interface OutboxStatus {
+  pending: number
+  sent: number
+  oldestPendingAgeSeconds: number | null
+}
+
+export interface DltAlert {
+  id: number
+  topic: string
+  partition: number
+  offset: number
+  recordKey?: string
+  recordValue?: string
+  errorMessage?: string
+  createdAt: string
+}
+
+export interface SagaLog {
+  id: number
+  reservationId: number
+  eventType: string
+  direction: string
+  payloadJson: string
+  observedAt: string
+}
+

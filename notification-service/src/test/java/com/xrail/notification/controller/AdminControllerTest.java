@@ -1,8 +1,8 @@
 package com.xrail.notification.controller;
 
-import com.xrail.notification.entity.DltAlertLog;
 import com.xrail.notification.exception.NotificationExceptionHandler;
 import com.xrail.notification.repository.DltAlertLogRepository;
+import com.xrail.notification.repository.NotificationLogRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -33,6 +33,9 @@ class AdminControllerTest {
     @MockBean
     private DltAlertLogRepository dltAlertLogRepository;
 
+    @MockBean
+    private NotificationLogRepository notificationLogRepository;
+
     // @EnableJpaAuditing requires JPA metamodel — mock it for WebMvcTest slice
     @MockBean
     private JpaMetamodelMappingContext jpaMetamodelMappingContext;
@@ -41,14 +44,14 @@ class AdminControllerTest {
     void adminRole_returns200() throws Exception {
         when(dltAlertLogRepository.findAll(any(Pageable.class))).thenReturn(Page.empty());
 
-        mockMvc.perform(get("/api/admin/dlt-alerts")
-                        .header("X-User-Role", "ADMIN"))
+        mockMvc.perform(get("/api/admin/notifications/dlt-alerts")
+                        .header("X-User-Role", "ROLE_ADMIN"))
                 .andExpect(status().isOk());
     }
 
     @Test
     void memberRole_returns403() throws Exception {
-        mockMvc.perform(get("/api/admin/dlt-alerts")
+        mockMvc.perform(get("/api/admin/notifications/dlt-alerts")
                         .header("X-User-Role", "ROLE_MEMBER"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
@@ -56,7 +59,7 @@ class AdminControllerTest {
 
     @Test
     void noRole_returns403() throws Exception {
-        mockMvc.perform(get("/api/admin/dlt-alerts"))
+        mockMvc.perform(get("/api/admin/notifications/dlt-alerts"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("FORBIDDEN"));
     }
@@ -66,9 +69,23 @@ class AdminControllerTest {
         when(dltAlertLogRepository.findByTopic(anyString(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
-        mockMvc.perform(get("/api/admin/dlt-alerts")
-                        .header("X-User-Role", "ADMIN")
+        mockMvc.perform(get("/api/admin/notifications/dlt-alerts")
+                        .header("X-User-Role", "ROLE_ADMIN")
                         .param("topic", "reservation.created.DLT"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void stats_admin_returnsCounts() throws Exception {
+        when(notificationLogRepository.countByStatus("SENT")).thenReturn(5L);
+        when(notificationLogRepository.countByStatus("PENDING")).thenReturn(1L);
+        when(notificationLogRepository.countByStatus("FAILED")).thenReturn(2L);
+
+        mockMvc.perform(get("/api/admin/notifications/stats")
+                        .header("X-User-Role", "ROLE_ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(8))
+                .andExpect(jsonPath("$.data.sent").value(5))
+                .andExpect(jsonPath("$.data.failed").value(2));
     }
 }

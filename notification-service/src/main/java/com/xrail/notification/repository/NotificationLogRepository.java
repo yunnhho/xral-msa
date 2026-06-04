@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long> {
 
     Page<NotificationLog> findByUserId(Long userId, Pageable pageable);
+
+    long countByStatus(String status);
 }

@@ -2,6 +2,7 @@ package com.xrail.train.entity;
 
 import com.xrail.common.entity.BaseTimeEntity;
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDate;
@@ -33,4 +34,16 @@ public class Schedule extends BaseTimeEntity {
 
     @Column(name = "arrival_time", nullable = false)
     private LocalTime arrivalTime;
+
+    protected Schedule() {}
+
+    @Builder
+    public Schedule(Route route, Train train, LocalDate departureDate,
+                    LocalTime departureTime, LocalTime arrivalTime) {
+        this.route = route;
+        this.train = train;
+        this.departureDate = departureDate;
+        this.departureTime = departureTime;
+        this.arrivalTime = arrivalTime;
+    }
 }

@@ -3,6 +3,7 @@ package com.xrail.train.kafka;
 import com.xrail.common.kafka.Topics;
 import com.xrail.common.kafka.event.PaymentCompletedEvent;
 import com.xrail.common.kafka.event.PaymentFailedEvent;
+import com.xrail.common.kafka.event.PaymentRefundedEvent;
 import com.xrail.train.service.ReservationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,5 +27,11 @@ public class PaymentEventConsumer {
     public void onPaymentFailed(PaymentFailedEvent event) {
         log.info("Received payment.failed reservationId={} reason={}", event.reservationId(), event.reason());
         reservationService.handlePaymentFailed(event.reservationId());
+    }
+
+    @KafkaListener(topics = Topics.PAYMENT_REFUNDED, groupId = "train-service")
+    public void onPaymentRefunded(PaymentRefundedEvent event) {
+        log.info("Received payment.refunded reservationId={} amount={}", event.reservationId(), event.amount());
+        reservationService.handleRefunded(event.reservationId());
     }
 }

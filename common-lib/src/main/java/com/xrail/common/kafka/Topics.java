@@ -15,6 +15,10 @@ public final class Topics {
     public static final String SEAT_RELEASED           = "seat.released";
     public static final String NOTIFICATION_DISPATCHED = "notification.dispatched";
 
+    // 환불 사가 (역방향 보상): train(요청) → payment(처리) → train(완료 수신)
+    public static final String PAYMENT_REFUND_REQUESTED = "payment.refund-requested";
+    public static final String PAYMENT_REFUNDED         = "payment.refunded";
+
     // DLT (Dead Letter Topics) — Spring Kafka 규칙: {원본토픽}.DLT
     public static final String PAYMENT_COMPLETED_DLT       = "payment.completed.DLT";
     public static final String PAYMENT_FAILED_DLT          = "payment.failed.DLT";
@@ -22,4 +26,6 @@ public final class Topics {
     public static final String RESERVATION_CREATED_DLT     = "reservation.created.DLT";
     public static final String SEAT_CONFIRMED_DLT          = "seat.confirmed.DLT";
     public static final String SEAT_RELEASED_DLT           = "seat.released.DLT";
+    public static final String PAYMENT_REFUND_REQUESTED_DLT = "payment.refund-requested.DLT";
+    public static final String PAYMENT_REFUNDED_DLT         = "payment.refunded.DLT";
 }

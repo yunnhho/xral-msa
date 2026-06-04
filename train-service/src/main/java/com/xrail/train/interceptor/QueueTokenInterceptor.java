@@ -38,7 +38,12 @@ public class QueueTokenInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        if (!HttpMethod.POST.matches(request.getMethod())) return true;
+        // 보호 대상: 예약 생성(POST /api/reservations, 토큰 일회성 소비) + 좌석 조회(GET .../seats, 검증만).
+        // 그 외(예: GET /api/reservations 목록)는 큐 토큰 불필요 → 통과.
+        String uri = request.getRequestURI();
+        boolean isReservationCreate = HttpMethod.POST.matches(request.getMethod()) && uri.endsWith("/api/reservations");
+        boolean isSeatQuery = HttpMethod.GET.matches(request.getMethod()) && uri.endsWith("/seats");
+        if (!isReservationCreate && !isSeatQuery) return true;
 
         String token = request.getHeader(Headers.QUEUE_TOKEN);
         String userIdHeader = request.getHeader(Headers.USER_ID);
@@ -65,7 +70,10 @@ public class QueueTokenInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // S5-D: 이미 사용된 토큰 차단 (일회성)
+        // 좌석 조회는 검증만 — 토큰을 소비하지 않는다(이어지는 예약 POST에서 1회 소비).
+        if (isSeatQuery) return true;
+
+        // S5-D: 이미 사용된 토큰 차단 (일회성) — 예약 생성 경로에만 적용
         String hmacPart = token.substring(0, token.lastIndexOf('.'));
         String usedKey = "queue:token:used:" + hmacPart;
         if (redissonClient.getBucket(usedKey).isExists()) {

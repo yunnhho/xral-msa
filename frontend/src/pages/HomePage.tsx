@@ -93,6 +93,7 @@ export default function HomePage() {
               <div style={{ flex: '1 1 130px' }}>
                 <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: C.textMuted, marginBottom: 5, letterSpacing: 1, textTransform: 'uppercase' }}>출발일</label>
                 <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} required
+                  min={todayStr()} max={maxBookingDateStr()}
                   style={{ ...sel, fontWeight: 500, fontSize: 14 }} />
               </div>
 
@@ -133,11 +134,13 @@ export default function HomePage() {
               </div>
 
               {schedules.map((sc, idx) => {
+                const tooLate = isTooLate(sc)
                 const available = sc.availableSeats > 0
+                const bookable = available && !tooLate
                 const badgeColor = TRAIN_BADGE[sc.trainType] ?? C.accent
                 return (
                   <div key={sc.scheduleId}
-                    style={{ display: 'grid', gridTemplateColumns: '72px 1fr 70px 120px 70px 100px', gap: 8, padding: '14px 20px', borderBottom: idx < schedules.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center' }}>
+                    style={{ display: 'grid', gridTemplateColumns: '72px 1fr 70px 120px 70px 100px', gap: 8, padding: '14px 20px', borderBottom: idx < schedules.length - 1 ? `1px solid ${C.border}` : 'none', alignItems: 'center', opacity: bookable ? 1 : 0.55 }}>
                     <div>
                       <span style={{ background: badgeColor, color: '#fff', padding: '2px 7px', borderRadius: 3, fontSize: 11, fontWeight: 800 }}>{sc.trainType}</span>
                       <div style={{ fontSize: 10, color: C.textMuted, marginTop: 3 }}>{sc.trainNumber}</div>
@@ -160,16 +163,17 @@ export default function HomePage() {
                       <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.3 }}>{sc.estimatedPrice.toLocaleString()}<span style={{ fontSize: 11, fontWeight: 400, color: C.textSub }}>원</span></div>
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: !available ? C.danger : sc.availableSeats < 10 ? C.warning : C.success }}>
-                        {!available ? '매진' : `${sc.availableSeats}석`}
+                      <span style={{ fontSize: 13, fontWeight: 700, color: tooLate ? C.textMuted : !available ? C.danger : sc.availableSeats < 10 ? C.warning : C.success }}>
+                        {tooLate ? '마감' : !available ? '매진' : `${sc.availableSeats}석`}
                       </span>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <button
                         onClick={() => navigate('/queue', { state: { schedule: sc, departureStationId: form.departureStationId, arrivalStationId: form.arrivalStationId } })}
-                        disabled={!available}
-                        style={{ padding: '7px 16px', background: !available ? C.bgAlt : C.accent, color: !available ? C.textMuted : '#fff', border: 'none', borderRadius: 4, cursor: !available ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, letterSpacing: 0.2 }}>
-                        {!available ? '매진' : '예매'}
+                        disabled={!bookable}
+                        title={tooLate ? '출발이 임박하여 예매할 수 없습니다.' : undefined}
+                        style={{ padding: '7px 16px', background: !bookable ? C.bgAlt : C.accent, color: !bookable ? C.textMuted : '#fff', border: 'none', borderRadius: 4, cursor: !bookable ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, letterSpacing: 0.2 }}>
+                        {tooLate ? '마감' : !available ? '매진' : '예매'}
                       </button>
                     </div>
                   </div>
@@ -189,4 +193,28 @@ export default function HomePage() {
   )
 }
 
-function todayStr() { return new Date().toISOString().slice(0, 10) }
+// 백엔드 RESERVATION_CLOSE_BEFORE_MINUTES(10분)와 일치 — 출발 임박 열차는 예매 마감
+const CLOSE_BEFORE_MINUTES = 10
+// 예매 가능 범위: 오늘 ~ +30일 (백엔드 BOOKING_WINDOW_DAYS와 일치)
+const BOOKING_WINDOW_DAYS = 30
+
+function todayStr() { return localDateStr(new Date()) }
+
+function maxBookingDateStr() {
+  const d = new Date()
+  d.setDate(d.getDate() + BOOKING_WINDOW_DAYS)
+  return localDateStr(d)
+}
+
+function localDateStr(d: Date) {
+  // 로컬 타임존 기준 YYYY-MM-DD (toISOString의 UTC 변환으로 날짜가 어긋나는 것 방지)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function isTooLate(sc: Schedule) {
+  const departure = new Date(`${sc.departureDate}T${sc.departureTime}`)
+  return departure.getTime() - Date.now() < CLOSE_BEFORE_MINUTES * 60 * 1000
+}

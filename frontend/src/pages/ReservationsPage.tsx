@@ -22,6 +22,7 @@ export default function ReservationsPage() {
   const [error, setError] = useState('')
   const [cancelling, setCancelling] = useState<number | null>(null)
   const [paidConfirmed, setPaidConfirmed] = useState(false)
+  const [notice, setNotice] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = () => {
@@ -54,11 +55,18 @@ export default function ReservationsPage() {
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [justPaid, paidId])
 
-  const handleCancel = async (reservationId: number) => {
-    if (!confirm('예약을 취소하시겠습니까?')) return
+  const handleCancel = async (reservationId: number, isPaid: boolean) => {
+    const message = isPaid
+      ? '결제 완료된 예약입니다.\n취소하면 결제하신 금액이 환불됩니다. 취소하시겠습니까?'
+      : '예약을 취소하시겠습니까?'
+    if (!confirm(message)) return
     setCancelling(reservationId)
     try {
       await client.delete(`/api/reservations/${reservationId}`)
+      // 환불은 비동기로 처리되므로(결제 취소 → 환불 사가) 접수 안내를 노출
+      setNotice(isPaid
+        ? '예약이 취소되었습니다. 환불이 접수되어 곧 처리됩니다.'
+        : '예약이 취소되었습니다.')
       load()
     } catch (err: unknown) {
       alert((err as { response?: { data?: ApiResponse<unknown> } })?.response?.data?.message ?? '취소 실패')
@@ -94,6 +102,12 @@ export default function ReservationsPage() {
         {paidConfirmed && (
           <div className="fade-in" style={{ background: C.successBg, border: `1px solid #6ee7b7`, borderRadius: 6, padding: '12px 16px', marginBottom: 14, fontSize: 13, color: C.success, fontWeight: 600 }}>
             결제가 완료되었습니다.
+          </div>
+        )}
+        {notice && (
+          <div className="fade-in" style={{ background: C.successBg, border: `1px solid #6ee7b7`, borderRadius: 6, padding: '12px 16px', marginBottom: 14, fontSize: 13, color: C.success, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{notice}</span>
+            <button onClick={() => setNotice('')} style={{ background: 'none', border: 'none', color: C.success, cursor: 'pointer', fontSize: 16, fontWeight: 700, lineHeight: 1 }}>×</button>
           </div>
         )}
 
@@ -134,7 +148,7 @@ export default function ReservationsPage() {
 }
 
 function ResvCard({ r, onCancel, onPay, cancelling, highlight }: {
-  r: Reservation; onCancel: (id: number) => void; onPay: () => void
+  r: Reservation; onCancel: (id: number, isPaid: boolean) => void; onPay: () => void
   cancelling: number | null; highlight: boolean
 }) {
   const meta = STATUS[r.status] ?? STATUS.CANCELLED
@@ -193,9 +207,9 @@ function ResvCard({ r, onCancel, onPay, cancelling, highlight }: {
                 결제하기
               </button>
             )}
-            <button onClick={() => onCancel(r.reservationId)} disabled={cancelling === r.reservationId}
+            <button onClick={() => onCancel(r.reservationId, isPaid)} disabled={cancelling === r.reservationId}
               style={{ flex: isPending ? 'none' : 1, padding: '9px 16px', background: C.surface, color: C.danger, border: `1px solid ${C.danger}`, borderRadius: 4, cursor: cancelling === r.reservationId ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600 }}>
-              {cancelling === r.reservationId ? '처리 중...' : '예약 취소'}
+              {cancelling === r.reservationId ? '처리 중...' : (isPaid ? '취소 · 환불' : '예약 취소')}
             </button>
           </div>
         )}

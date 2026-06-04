@@ -4,6 +4,7 @@ import com.xrail.common.dto.ApiResponse;
 import com.xrail.common.exception.BusinessException;
 import com.xrail.common.exception.ErrorCode;
 import com.xrail.common.header.Headers;
+import com.xrail.common.security.Roles;
 import com.xrail.train.dto.ReservationResponse;
 import com.xrail.train.dto.ReservationStatsResponse;
 import com.xrail.train.entity.DltAlertLog;
@@ -106,7 +107,7 @@ public class AdminController {
     }
 
     private void requireAdmin(String userRole) {
-        if (!"ADMIN".equals(userRole)) {
+        if (!Roles.ADMIN.equals(userRole)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
     }

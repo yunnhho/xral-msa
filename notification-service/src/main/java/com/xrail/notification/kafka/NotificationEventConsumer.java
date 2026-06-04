@@ -80,6 +80,21 @@ public class NotificationEventConsumer {
         );
     }
 
+    @KafkaListener(topics = Topics.PAYMENT_REFUNDED, groupId = "notification-service")
+    public void onPaymentRefunded(PaymentRefundedEvent event) {
+        log.info("Received payment.refunded paymentId={} reservationId={}", event.paymentId(), event.reservationId());
+        notificationService.dispatch(
+                event.userId(),
+                "PAYMENT_REFUNDED",
+                event.eventId(),
+                Map.of(
+                        "paymentId", event.paymentId(),
+                        "reservationId", event.reservationId(),
+                        "amount", event.amount()
+                )
+        );
+    }
+
     @KafkaListener(topics = Topics.SEAT_CONFIRMED, groupId = "notification-service")
     public void onSeatConfirmed(SeatConfirmedEvent event) {
         log.info("Received seat.confirmed reservationId={}", event.reservationId());

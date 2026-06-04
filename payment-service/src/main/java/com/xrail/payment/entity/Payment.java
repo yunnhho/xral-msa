@@ -73,4 +73,18 @@ public class Payment extends BaseTimeEntity {
         this.status = PaymentStatus.FAILED;
         this.failureReason = reason;
     }
+
+    /**
+     * P7: 환불 시 COMPLETED → CANCELLED 전이만 허용. 그 외 상태에서 호출되면 예외.
+     */
+    public void cancel() {
+        if (this.status != PaymentStatus.COMPLETED) {
+            throw new IllegalStateException("환불 불가 상태: " + this.status);
+        }
+        this.status = PaymentStatus.CANCELLED;
+    }
+
+    public boolean isCancelled() {
+        return this.status == PaymentStatus.CANCELLED;
+    }
 }

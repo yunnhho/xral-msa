@@ -292,6 +292,40 @@ class ReservationServiceTest {
         verify(luaScriptService).rollback(1L, 5L, 0, 3);
         verify(eventProducer).publishSeatReleased(any(), anyList(), eq("ADMIN_CANCEL"));
         assertThat(savedReservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+        // PENDING(미결제) 예약 취소는 환불 사가를 트리거하지 않는다
+        verify(eventProducer, never()).publishPaymentRefundRequested(any(), any());
+    }
+
+    // ===== 환불 사가 트리거 =====
+
+    @Test
+    void cancelByUser_paidReservation_triggersRefund() {
+        Ticket ticket = mock(Ticket.class);
+        when(ticket.getScheduleId()).thenReturn(1L);
+        when(ticket.getSeatId()).thenReturn(5L);
+        when(ticket.getStartStationIdx()).thenReturn(0);
+        when(ticket.getEndStationIdx()).thenReturn(3);
+        Reservation paid = mock(Reservation.class);
+        when(paid.getStatus()).thenReturn(ReservationStatus.PAID);
+        when(paid.getReservationId()).thenReturn(1L);
+        when(paid.getUserId()).thenReturn(42L);
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(paid));
+        when(ticketRepository.findByReservationReservationId(any())).thenReturn(List.of(ticket));
+
+        reservationService.cancelByUser(1L, 42L);
+
+        // 좌석 즉시 반환 + 환불 요청 발행
+        verify(luaScriptService).rollback(1L, 5L, 0, 3);
+        verify(eventProducer).publishSeatReleased(any(), anyList(), eq("USER_CANCEL"));
+        verify(eventProducer).publishPaymentRefundRequested(eq(paid), eq("USER_CANCEL"));
+    }
+
+    @Test
+    void handleRefunded_recordsSagaLogOnly() {
+        reservationService.handleRefunded(1L);
+
+        verify(sagaLogService).recordInbound(eq(1L), any(), any());
+        verify(luaScriptService, never()).rollback(anyLong(), anyLong(), any(int.class), any(int.class));
     }
 
     @Test

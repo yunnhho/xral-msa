@@ -242,6 +242,8 @@ public class ReservationService {
 
     private void compensateAndCancel(Reservation reservation, String reason) {
         Long reservationId = reservation.getReservationId();
+        // 이미 결제된 예약을 취소하는 경우 환불 사가를 트리거해야 한다 (좌석은 즉시 반환).
+        boolean wasPaid = reservation.getStatus() == ReservationStatus.PAID;
         List<Ticket> tickets = ticketRepository.findByReservationReservationId(reservationId);
         tickets.forEach(Ticket::cancel);
         for (Ticket t : tickets) {
@@ -253,6 +255,14 @@ public class ReservationService {
             sagaLogService.recordOutbound(reservationId, Topics.SEAT_RELEASED, reason);
         } catch (Exception e) {
             log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
+        }
+        if (wasPaid) {
+            eventProducer.publishPaymentRefundRequested(reservation, reason);
+            try {
+                sagaLogService.recordOutbound(reservationId, Topics.PAYMENT_REFUND_REQUESTED, reason);
+            } catch (Exception e) {
+                log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
+            }
         }
     }
 
@@ -296,6 +306,20 @@ public class ReservationService {
                 log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
             }
         });
+    }
+
+    /**
+     * 환불 완료 수신(payment.refunded). 좌석/예약은 취소 시점에 이미 정리되었으므로
+     * 사가 로그(INBOUND)만 기록한다. 멱등 — 로그 실패는 삼킨다.
+     */
+    @Transactional
+    public void handleRefunded(Long reservationId) {
+        try {
+            sagaLogService.recordInbound(reservationId, Topics.PAYMENT_REFUNDED, reservationId);
+        } catch (Exception e) {
+            log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
+        }
+        log.info("Refund confirmed reservationId={}", reservationId);
     }
 
     @Transactional

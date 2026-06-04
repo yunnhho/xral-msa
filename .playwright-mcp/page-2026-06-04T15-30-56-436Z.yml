@@ -1,0 +1,37 @@
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - button "XRAIL" [ref=e7] [cursor=pointer]:
+        - generic [ref=e8]: XRAIL
+      - navigation [ref=e10]:
+        - button "승차권 예매" [ref=e11] [cursor=pointer]
+        - button "예매 내역" [ref=e12] [cursor=pointer]
+        - button "운영자" [ref=e13] [cursor=pointer]
+      - generic [ref=e14]:
+        - generic [ref=e15]: 운영자
+        - button "로그아웃" [ref=e16] [cursor=pointer]
+  - generic [ref=e18]:
+    - paragraph [ref=e19]: 승차권 예매
+    - heading "어디로 가시나요?" [level=1] [ref=e20]
+    - generic [ref=e22]:
+      - generic [ref=e23]:
+        - generic [ref=e24]: 출발역
+        - combobox [ref=e25]:
+          - option "선택"
+          - option "서울" [selected]
+          - option "대전"
+          - option "동대구"
+          - option "부산"
+      - button "⇄" [ref=e26] [cursor=pointer]
+      - generic [ref=e27]:
+        - generic [ref=e28]: 도착역
+        - combobox [ref=e29]:
+          - option "선택" [selected]
+          - option "대전"
+          - option "동대구"
+          - option "부산"
+      - generic [ref=e30]:
+        - generic [ref=e31]: 출발일
+        - textbox [ref=e32]: 2026-06-05
+      - button "열차 조회" [ref=e33] [cursor=pointer]
+  - paragraph [ref=e36]: 출발역, 도착역, 날짜를 선택하고 열차를 조회하세요.

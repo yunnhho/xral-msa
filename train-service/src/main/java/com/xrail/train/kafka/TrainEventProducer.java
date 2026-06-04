@@ -100,6 +100,19 @@ public class TrainEventProducer {
         log.info("Published seat.released reservationId={} reason={}", reservation.getReservationId(), reason);
     }
 
+    public void publishPaymentRefundRequested(Reservation reservation, String reason) {
+        PaymentRefundRequestedEvent event = new PaymentRefundRequestedEvent(
+                UUID.randomUUID().toString(),
+                Instant.now().toString(),
+                MDC.get("traceId"),
+                reservation.getReservationId(),
+                reservation.getUserId(),
+                reason
+        );
+        kafkaTemplate.send(Topics.PAYMENT_REFUND_REQUESTED, String.valueOf(reservation.getReservationId()), event);
+        log.info("Published payment.refund-requested reservationId={} reason={}", reservation.getReservationId(), reason);
+    }
+
     public void publishSeatReleasedReconcile(Long scheduleId, Long seatId) {
         SeatReleasedEvent event = new SeatReleasedEvent(
                 UUID.randomUUID().toString(),

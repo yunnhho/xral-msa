@@ -25,4 +25,12 @@ public class MockPaymentGateway implements PaymentGateway {
         log.info("MockPG failure paymentId={}", paymentId);
         return new PgResult(false, null, "MOCK_FAILURE");
     }
+
+    @Override
+    public PgResult refund(Long paymentId, Long amount) {
+        // Mock: 환불은 항상 성공한다고 가정 (실 PG에서도 환불 실패는 드물다).
+        String txnId = "MOCK-RF-" + UUID.randomUUID().toString().replace("-", "").substring(0, 13).toUpperCase();
+        log.info("MockPG refund success paymentId={} amount={} txnId={}", paymentId, amount, txnId);
+        return new PgResult(true, txnId, null);
+    }
 }

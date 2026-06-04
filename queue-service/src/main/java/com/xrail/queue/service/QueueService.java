@@ -20,11 +20,20 @@ public class QueueService {
 
     private static final String WAITING_KEY_PREFIX = "queue:waiting:";
     private static final String ACTIVE_KEY_PREFIX  = "queue:active:";
+    private static final String ACTIVE_SET_PREFIX  = "queue:active:set:";
     private static final String SCOPES_KEY         = "queue:scopes";
     private static final String IDEM_KEY_PREFIX    = "queue:idem:";
+    private static final String MODE_KEY           = "queue:mode";
+
+    public static final String MODE_AUTO      = "AUTO";       // 평시 우회 + 임계치 초과 시 자동 대기
+    public static final String MODE_FORCE_ON  = "FORCE_ON";   // 운영자 강제 ON: 항상 대기열
+    public static final String MODE_FORCE_OFF = "FORCE_OFF";  // 운영자 강제 OFF: 대기열 비활성(즉시 입장)
 
     @Value("${queue.active-ttl-seconds:600}")
     private int activeTtlSeconds;
+
+    @Value("${queue.admission.max-active:100}")
+    private int maxActive;
 
     private final RedissonClient redissonClient;
     private final QueueTokenService tokenService;
@@ -42,6 +51,14 @@ public class QueueService {
             long ttlMs = redissonClient.getBucket(activeKey).remainTimeToLive();
             long expiresAt = System.currentTimeMillis() + (ttlMs > 0 ? ttlMs : 0);
             return EnterResult.active(existingToken, expiresAt);
+        }
+
+        // 입장 제어(C): FORCE_OFF면 즉시 입장, AUTO면 대기자 없고 active 여유 있을 때만 즉시 입장.
+        // FORCE_ON이거나 임계치 초과면 대기열 등록(아래 로직).
+        String mode = getMode();
+        if (MODE_FORCE_OFF.equals(mode)
+                || (MODE_AUTO.equals(mode) && getWaitingSize(scope) == 0 && getActiveCount(scope) < maxActive)) {
+            return admit(userId, scope);
         }
 
         // Idempotency 체크 (중복 진입 방지)
@@ -80,6 +97,7 @@ public class QueueService {
     public void leave(Long userId, String scope) {
         redissonClient.getScoredSortedSet(WAITING_KEY_PREFIX + scope).remove(userId.toString());
         redissonClient.getBucket(ACTIVE_KEY_PREFIX + scope + ":" + userId).delete();
+        redissonClient.getScoredSortedSet(ACTIVE_SET_PREFIX + scope).remove(userId.toString());
     }
 
     /**
@@ -96,8 +114,10 @@ public class QueueService {
             long issuedAt = System.currentTimeMillis();
             String token = tokenService.generateToken(uid, scope, issuedAt);
 
+            long expiresAt = issuedAt + (long) activeTtlSeconds * 1000;
             String activeKey = ACTIVE_KEY_PREFIX + scope + ":" + uid;
             redissonClient.getBucket(activeKey).set(token, Duration.ofSeconds(activeTtlSeconds));
+            redissonClient.getScoredSortedSet(ACTIVE_SET_PREFIX + scope).add(expiresAt, userIdStr);
             waitingSet.remove(userIdStr);
             promoted.add(uid);
         }
@@ -122,7 +142,65 @@ public class QueueService {
         return redissonClient.getScoredSortedSet(WAITING_KEY_PREFIX + scope).size();
     }
 
+    /**
+     * 현재 동시 active(입장 허용) 인원. 만료된 항목은 조회 시 정리(score = 만료 epoch ms).
+     */
+    public int getActiveCount(String scope) {
+        RScoredSortedSet<String> activeSet = redissonClient.getScoredSortedSet(ACTIVE_SET_PREFIX + scope);
+        activeSet.removeRangeByScore(0, true, System.currentTimeMillis(), true);
+        return activeSet.size();
+    }
+
+    // ===== 입장 제어 모드 (운영자 override) =====
+
+    public String getMode() {
+        String mode = (String) redissonClient.getBucket(MODE_KEY).get();
+        return mode == null ? MODE_AUTO : mode;
+    }
+
+    /** 허용 값: AUTO / FORCE_ON / FORCE_OFF. 그 외는 컨트롤러 단 @Pattern으로 차단. */
+    public void setMode(String mode) {
+        redissonClient.getBucket(MODE_KEY).set(mode);
+        log.info("Queue admission mode changed to {}", mode);
+    }
+
+    /** 운영자 콘솔용 스냅샷: 현재 모드 + 임계치 + scope별 대기/active 현황. */
+    public java.util.Map<String, Object> modeSnapshot() {
+        java.util.Set<String> scopes = new java.util.TreeSet<>(getActiveScopes());
+        scopes.add("global");
+        java.util.List<java.util.Map<String, Object>> scopeStats = new java.util.ArrayList<>();
+        for (String scope : scopes) {
+            scopeStats.add(java.util.Map.of(
+                    "scope", scope,
+                    "waiting", getWaitingSize(scope),
+                    "active", getActiveCount(scope)
+            ));
+        }
+        return java.util.Map.of(
+                "mode", getMode(),
+                "maxActive", maxActive,
+                "scopes", scopeStats
+        );
+    }
+
     // ===== helpers =====
+
+    /**
+     * 즉시 입장 처리: 큐 토큰 발급 + active 등록(+ active-set 카운팅용 등록). waiting에 있었다면 제거.
+     */
+    private EnterResult admit(Long userId, String scope) {
+        long issuedAt = System.currentTimeMillis();
+        String token = tokenService.generateToken(userId, scope, issuedAt);
+        long expiresAt = issuedAt + (long) activeTtlSeconds * 1000;
+
+        redissonClient.getBucket(ACTIVE_KEY_PREFIX + scope + ":" + userId)
+                .set(token, Duration.ofSeconds(activeTtlSeconds));
+        redissonClient.getScoredSortedSet(ACTIVE_SET_PREFIX + scope).add(expiresAt, userId.toString());
+        redissonClient.getScoredSortedSet(WAITING_KEY_PREFIX + scope).remove(userId.toString());
+
+        meterRegistry.counter("xrail.queue.immediate.total").increment();
+        return EnterResult.active(token, expiresAt);
+    }
 
     private EnterResult buildWaitingResult(Long userId, String scope) {
         int rank = getWaitingRank(userId, scope);

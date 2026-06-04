@@ -19,12 +19,12 @@ Kafka 이벤트 수신 → 알림 로그 저장 → 채널 전송. Kafka consume
 - 새 채널 추가 시 기존 코드 수정 없이 새 어댑터 클래스 추가만으로 가능하도록 설계.
 
 ### N3. 템플릿 관리
-- 5개 템플릿: `WELCOME`, `RESERVATION_CREATED`, `PAYMENT_COMPLETED`, `PAYMENT_FAILED`, `SEAT_RELEASED_TIMEOUT`.
+- 템플릿: `WELCOME`, `RESERVATION_CREATED`, `PAYMENT_COMPLETED`, `PAYMENT_FAILED`, `SEAT_RELEASED_TIMEOUT`, `PAYMENT_REFUNDED`(환불 완료). 템플릿은 자유 문자열 컬럼이므로 추가 시 별도 레지스트리 등록 불필요.
 - 템플릿 변수는 `payload_json`에서 읽는다. 이벤트 DTO 필드에 직접 접근하지 않고 JSON 파싱.
 - 지원하지 않는 이벤트가 들어오면 warn 로그 후 skip. 예외 throw 금지.
 
 ### N4. Kafka 토픽 구독
-- 구독 토픽: `user.signed-up`, `reservation.created`, `payment.completed`, `payment.failed`, `seat.confirmed`, `seat.released`.
+- 구독 토픽: `user.signed-up`, `reservation.created`, `payment.completed`, `payment.failed`, `seat.confirmed`, `seat.released`, `payment.refunded`(→ `PAYMENT_REFUNDED` 알림).
 - `seat.released`의 `reason` 필드로 알림 템플릿 분기: `TIMEOUT` → `SEAT_RELEASED_TIMEOUT`, `PAYMENT_FAILED` → `PAYMENT_FAILED`, 나머지 → 로그만.
 - `notification.dispatched` 이벤트는 **이 서비스가 발행**. 다른 서비스가 이 이벤트를 소비해서 비즈니스 로직을 실행하면 안 된다 (감사용).
 
