@@ -6,9 +6,11 @@ import com.xrail.auth.dto.MeResponse;
 import com.xrail.auth.dto.RefreshRequest;
 import com.xrail.auth.dto.SignUpRequest;
 import com.xrail.auth.entity.Member;
+import com.xrail.auth.entity.NonMember;
 import com.xrail.auth.entity.enums.UserRole;
 import com.xrail.auth.kafka.AuthEventProducer;
 import com.xrail.auth.repository.MemberRepository;
+import com.xrail.auth.repository.NonMemberRepository;
 import com.xrail.auth.security.JwtTokenProvider;
 import com.xrail.common.exception.BusinessException;
 import com.xrail.common.exception.ErrorCode;
@@ -38,6 +40,7 @@ import static org.mockito.Mockito.when;
 class AuthServiceTest {
 
     @Mock private MemberRepository memberRepository;
+    @Mock private NonMemberRepository nonMemberRepository;
     @Mock private PasswordEncoder passwordEncoder;
     @Mock private JwtTokenProvider jwtTokenProvider;
     @Mock private RefreshTokenService refreshTokenService;
@@ -166,6 +169,34 @@ class AuthServiceTest {
 
         assertThat(response.accessToken()).isEqualTo("new-access");
         assertThat(response.refreshToken()).isEqualTo("new-refresh");
+    }
+
+    @Test
+    void refresh_nonMember_reissuesTokens() {
+        // 비회원도 refresh 토큰을 발급받으므로 NonMember에서 정보를 해소해야 한다 (F-17)
+        NonMember nonMember = NonMember.builder()
+                .name("게스트")
+                .phone("01099998888")
+                .password("hashed")
+                .accessCode("ABC1234567")
+                .build();
+        Claims claims = mock(Claims.class);
+        when(jwtTokenProvider.parseAndValidate(anyString())).thenReturn(claims);
+        when(jwtTokenProvider.isRefreshToken(claims)).thenReturn(true);
+        when(claims.getSubject()).thenReturn("7");
+        when(refreshTokenService.isBlacklisted(7L)).thenReturn(false);
+        when(refreshTokenService.rotate(anyString())).thenReturn(99L);
+        when(memberRepository.findById(7L)).thenReturn(Optional.empty());
+        when(nonMemberRepository.findById(7L)).thenReturn(Optional.of(nonMember));
+        when(jwtTokenProvider.issueRefreshToken(7L)).thenReturn("nm-refresh");
+        when(jwtTokenProvider.issueAccessToken(any(), any(), any())).thenReturn("nm-access");
+
+        LoginResponse response = authService.refresh(
+                new RefreshRequest("old-refresh-token"), mock(HttpServletRequest.class));
+
+        assertThat(response.accessToken()).isEqualTo("nm-access");
+        assertThat(response.refreshToken()).isEqualTo("nm-refresh");
+        assertThat(response.role()).isEqualTo(UserRole.ROLE_NON_MEMBER.name());
     }
 
     // ===== logout =====

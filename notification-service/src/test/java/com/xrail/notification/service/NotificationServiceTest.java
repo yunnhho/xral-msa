@@ -2,24 +2,23 @@ package com.xrail.notification.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xrail.notification.channel.NotificationChannel;
-import com.xrail.notification.entity.NotificationLog;
-import com.xrail.notification.repository.NotificationLogRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -27,8 +26,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class NotificationServiceTest {
 
-    @Mock private NotificationLogRepository logRepository;
-    @Mock private ApplicationEventPublisher eventPublisher;
+    @Mock private NotificationLogWriter logWriter;
 
     private NotificationChannel inAppChannel;
     private NotificationService notificationService;
@@ -39,50 +37,40 @@ class NotificationServiceTest {
         inAppChannel = mock(NotificationChannel.class);
         when(inAppChannel.getChannelName()).thenReturn("INAPP");
         objectMapper = new ObjectMapper();
-        notificationService = new NotificationService(logRepository, List.of(inAppChannel),
-                objectMapper, eventPublisher);
+        notificationService = new NotificationService(List.of(inAppChannel), objectMapper, logWriter);
     }
 
     @Test
-    void dispatch_success_savesLogAndPublishesEvent() {
-        NotificationLog saved = mock(NotificationLog.class);
-        when(saved.getId()).thenReturn(1L);
-        when(logRepository.save(any(NotificationLog.class))).thenReturn(saved);
-
+    void dispatch_success_writesPerChannel() {
         notificationService.dispatch(42L, "WELCOME", "event-uuid-1", Map.of("name", "홍길동"));
 
-        verify(logRepository).save(any(NotificationLog.class));
-        verify(eventPublisher).publishEvent(any(NotificationChannelSendEvent.class));
+        verify(logWriter).saveAndPublish(eq(42L), eq("INAPP"), eq("WELCOME"), eq("event-uuid-1"), anyString());
     }
 
     @Test
-    void dispatch_duplicateCorrelationId_noOpAndNoEvent() {
-        // N1: DataIntegrityViolationException → already processed → no event
+    void dispatch_duplicateCorrelationId_swallowedNoThrow() {
+        // N1: DataIntegrityViolationException → already processed → swallow, no propagation
         doThrow(DataIntegrityViolationException.class)
-                .when(logRepository).save(any(NotificationLog.class));
+                .when(logWriter).saveAndPublish(anyLong(), anyString(), anyString(), anyString(), anyString());
 
-        notificationService.dispatch(42L, "WELCOME", "event-uuid-1", Map.of("name", "홍길동"));
+        assertThatCode(() ->
+                notificationService.dispatch(42L, "WELCOME", "event-uuid-1", Map.of("name", "홍길동")))
+                .doesNotThrowAnyException();
 
-        verify(eventPublisher, never()).publishEvent(any());
+        verify(logWriter).saveAndPublish(anyLong(), anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
-    void dispatch_multipleChannels_savesPerChannel() {
+    void dispatch_multipleChannels_writesPerChannel() {
         NotificationChannel smsChannel = mock(NotificationChannel.class);
         when(smsChannel.getChannelName()).thenReturn("SMS");
 
-        notificationService = new NotificationService(logRepository,
-                List.of(inAppChannel, smsChannel), objectMapper, eventPublisher);
-
-        NotificationLog saved = mock(NotificationLog.class);
-        when(saved.getId()).thenReturn(1L);
-        when(logRepository.save(any(NotificationLog.class))).thenReturn(saved);
+        notificationService = new NotificationService(
+                List.of(inAppChannel, smsChannel), objectMapper, logWriter);
 
         notificationService.dispatch(42L, "PAYMENT_COMPLETED", "event-uuid-2", Map.of());
 
-        // One save per channel
-        verify(logRepository, times(2)).save(any(NotificationLog.class));
-        verify(eventPublisher, times(2)).publishEvent(any(NotificationChannelSendEvent.class));
+        verify(logWriter, times(2)).saveAndPublish(anyLong(), anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -90,19 +78,15 @@ class NotificationServiceTest {
         NotificationChannel smsChannel = mock(NotificationChannel.class);
         when(smsChannel.getChannelName()).thenReturn("SMS");
 
-        notificationService = new NotificationService(logRepository,
-                List.of(inAppChannel, smsChannel), objectMapper, eventPublisher);
+        notificationService = new NotificationService(
+                List.of(inAppChannel, smsChannel), objectMapper, logWriter);
 
-        // First call (INAPP) throws duplicate, second call (SMS) succeeds
-        NotificationLog smsLog = mock(NotificationLog.class);
-        when(smsLog.getId()).thenReturn(2L);
-        when(logRepository.save(any(NotificationLog.class)))
-                .thenThrow(DataIntegrityViolationException.class) // INAPP
-                .thenReturn(smsLog);                              // SMS
+        // INAPP throws duplicate; SMS must still be attempted (isolated transactions)
+        doThrow(DataIntegrityViolationException.class)
+                .when(logWriter).saveAndPublish(anyLong(), eq("INAPP"), anyString(), anyString(), anyString());
 
         notificationService.dispatch(42L, "RESERVATION_CREATED", "event-uuid-3", Map.of());
 
-        // SMS was processed
-        verify(eventPublisher, times(1)).publishEvent(any(NotificationChannelSendEvent.class));
+        verify(logWriter).saveAndPublish(anyLong(), eq("SMS"), anyString(), anyString(), anyString());
     }
 }

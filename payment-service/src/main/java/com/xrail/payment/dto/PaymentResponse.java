@@ -2,6 +2,8 @@ package com.xrail.payment.dto;
 
 import com.xrail.payment.entity.Payment;
 
+import java.time.ZoneOffset;
+
 public record PaymentResponse(
         Long paymentId,
         Long reservationId,
@@ -27,7 +29,7 @@ public record PaymentResponse(
                 p.getMethod(),
                 p.getProviderTxnId(),
                 p.getFailureReason(),
-                p.getUpdatedAt() != null ? p.getUpdatedAt().toString() : null
+                p.getUpdatedAt() != null ? p.getUpdatedAt().atOffset(ZoneOffset.UTC).toString() : null
         );
     }
 }

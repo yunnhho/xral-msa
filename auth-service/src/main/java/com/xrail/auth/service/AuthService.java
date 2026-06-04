@@ -2,9 +2,11 @@ package com.xrail.auth.service;
 
 import com.xrail.auth.dto.*;
 import com.xrail.auth.entity.Member;
+import com.xrail.auth.entity.NonMember;
 import com.xrail.auth.entity.enums.UserRole;
 import com.xrail.auth.kafka.AuthEventProducer;
 import com.xrail.auth.repository.MemberRepository;
+import com.xrail.auth.repository.NonMemberRepository;
 import com.xrail.auth.security.JwtTokenProvider;
 import com.xrail.common.exception.BusinessException;
 import com.xrail.common.exception.ErrorCode;
@@ -22,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     private final MemberRepository memberRepository;
+    private final NonMemberRepository nonMemberRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
@@ -78,15 +81,26 @@ public class AuthService {
         }
         Long oldTokenId = refreshTokenService.rotate(request.refreshToken());
 
-        Member member = memberRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        // 회원/비회원 모두 refresh 토큰을 발급받으므로 양쪽에서 사용자 정보를 해소한다.
+        UserRole role;
+        String name;
+        Member member = memberRepository.findById(userId).orElse(null);
+        if (member != null) {
+            role = member.getRole();
+            name = member.getName();
+        } else {
+            NonMember nonMember = nonMemberRepository.findById(userId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+            role = nonMember.getRole();
+            name = nonMember.getName();
+        }
 
         String newRefresh = jwtTokenProvider.issueRefreshToken(userId);
         refreshTokenService.save(userId, newRefresh,
                 httpRequest.getRemoteAddr(), httpRequest.getHeader("User-Agent"), oldTokenId);
 
-        String newAccess = jwtTokenProvider.issueAccessToken(userId, member.getRole(), member.getName());
-        return new LoginResponse(userId, member.getName(), member.getRole().name(), newAccess, newRefresh);
+        String newAccess = jwtTokenProvider.issueAccessToken(userId, role, name);
+        return new LoginResponse(userId, name, role.name(), newAccess, newRefresh);
     }
 
     @Transactional

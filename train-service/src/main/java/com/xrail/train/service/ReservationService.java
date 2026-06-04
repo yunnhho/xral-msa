@@ -5,6 +5,7 @@ import com.xrail.common.exception.ErrorCode;
 import com.xrail.common.kafka.Topics;
 import com.xrail.train.dto.ReservationRequest;
 import com.xrail.train.dto.ReservationResponse;
+import com.xrail.train.dto.ReservationStatsResponse;
 import com.xrail.train.entity.Reservation;
 import com.xrail.train.entity.Schedule;
 import com.xrail.train.entity.Seat;
@@ -19,6 +20,8 @@ import com.xrail.train.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +38,8 @@ public class ReservationService {
 
     private static final int EXPIRES_MINUTES = 20;
     private static final long BASE_PRICE_PER_SEGMENT = 10_000L;
+    // 출발 시각이 임박하면(또는 이미 지났으면) 예약을 받지 않는다.
+    private static final int RESERVATION_CLOSE_BEFORE_MINUTES = 10;
 
     private final ReservationRepository reservationRepository;
     private final TicketRepository ticketRepository;
@@ -63,6 +68,17 @@ public class ReservationService {
         Schedule schedule = scheduleRepository.findById(request.scheduleId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
 
+        // 출발역과 도착역이 같으면 유효한 구간이 아니다.
+        if (request.departureStationId().equals(request.arrivalStationId())) {
+            throw new BusinessException(ErrorCode.INVALID_ROUTE);
+        }
+
+        // 출발 시각이 이미 지났거나 임박한 스케줄은 예약 불가.
+        LocalDateTime departureAt = schedule.getDepartureDate().atTime(schedule.getDepartureTime());
+        if (!departureAt.isAfter(LocalDateTime.now().plusMinutes(RESERVATION_CLOSE_BEFORE_MINUTES))) {
+            throw new BusinessException(ErrorCode.LATE_RESERVATION);
+        }
+
         Long routeId = schedule.getRoute().getRouteId();
         int startIdx = routeStationRepository
                 .findByRouteRouteIdAndStationStationId(routeId, request.departureStationId())
@@ -72,6 +88,11 @@ public class ReservationService {
                 .findByRouteRouteIdAndStationStationId(routeId, request.arrivalStationId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.STATION_NOT_IN_ROUTE))
                 .getStationSequence();
+
+        // 도착역이 출발역보다 노선상 앞서면 역방향 — 유효하지 않은 구간.
+        if (startIdx >= endIdx) {
+            throw new BusinessException(ErrorCode.INVALID_ROUTE);
+        }
 
         // 2. Lua bitmask atomic lock — with rollback on partial failure (T1)
         List<Long> lockedSeats = new ArrayList<>();
@@ -165,6 +186,36 @@ public class ReservationService {
                 .toList();
     }
 
+    // ===== 운영자(admin) 모니터링/조회 =====
+
+    @Transactional(readOnly = true)
+    public ReservationStatsResponse stats() {
+        long pending = reservationRepository.countByStatus(ReservationStatus.PENDING);
+        long paid = reservationRepository.countByStatus(ReservationStatus.PAID);
+        long cancelled = reservationRepository.countByStatus(ReservationStatus.CANCELLED);
+        long paidRevenue = reservationRepository.sumTotalPriceByStatus(ReservationStatus.PAID);
+        return new ReservationStatsResponse(pending + paid + cancelled, pending, paid, cancelled, paidRevenue);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ReservationResponse> adminSearch(ReservationStatus status, Pageable pageable) {
+        Page<Reservation> page = (status != null)
+                ? reservationRepository.findByStatus(status, pageable)
+                : reservationRepository.findAll(pageable);
+        return page.map(r -> {
+            List<Ticket> tickets = ticketRepository.findByReservationReservationId(r.getReservationId());
+            return toResponse(r, tickets);
+        });
+    }
+
+    @Transactional(readOnly = true)
+    public ReservationResponse adminGetById(Long reservationId) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+        List<Ticket> tickets = ticketRepository.findByReservationReservationId(reservationId);
+        return toResponse(reservation, tickets);
+    }
+
     @Transactional
     public void cancelByUser(Long reservationId, Long userId) {
         Reservation reservation = reservationRepository.findById(reservationId)
@@ -173,23 +224,47 @@ public class ReservationService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         if (reservation.getStatus() == ReservationStatus.CANCELLED) return;
+        compensateAndCancel(reservation, "USER_CANCEL");
+        log.info("Reservation cancelled by user reservationId={} userId={}", reservationId, userId);
+    }
+
+    /**
+     * 운영자 강제 취소. 소유권 검증 없이 좌석을 반환하고 예약을 취소한다.
+     */
+    @Transactional
+    public void cancelByAdmin(Long reservationId) {
+        Reservation reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESERVATION_NOT_FOUND));
+        if (reservation.getStatus() == ReservationStatus.CANCELLED) return;
+        compensateAndCancel(reservation, "ADMIN_CANCEL");
+        log.info("Reservation force-cancelled by admin reservationId={}", reservationId);
+    }
+
+    private void compensateAndCancel(Reservation reservation, String reason) {
+        Long reservationId = reservation.getReservationId();
         List<Ticket> tickets = ticketRepository.findByReservationReservationId(reservationId);
         tickets.forEach(Ticket::cancel);
         for (Ticket t : tickets) {
             luaScriptService.rollback(t.getScheduleId(), t.getSeatId(), t.getStartStationIdx(), t.getEndStationIdx());
         }
         reservation.cancel();
-        eventProducer.publishSeatReleased(reservation, tickets, "USER_CANCEL");
+        eventProducer.publishSeatReleased(reservation, tickets, reason);
         try {
-            sagaLogService.recordOutbound(reservationId, Topics.SEAT_RELEASED, "USER_CANCEL");
+            sagaLogService.recordOutbound(reservationId, Topics.SEAT_RELEASED, reason);
         } catch (Exception e) {
             log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
         }
-        log.info("Reservation cancelled by user reservationId={} userId={}", reservationId, userId);
     }
 
     @Transactional
-    public void expireReservation(Reservation reservation) {
+    public void expireReservation(Reservation detached) {
+        // Re-fetch inside the transaction so dirty-checking persists the status change,
+        // and re-check status to avoid cancelling a reservation that was PAID after the
+        // scheduler's query (query→process race). DB is source of truth (T4).
+        Reservation reservation = reservationRepository.findById(detached.getReservationId()).orElse(null);
+        if (reservation == null || reservation.getStatus() != ReservationStatus.PENDING) {
+            return;
+        }
         List<Ticket> tickets = ticketRepository.findByReservationReservationId(reservation.getReservationId());
         tickets.forEach(Ticket::cancel);
         for (Ticket t : tickets) {
@@ -226,6 +301,9 @@ public class ReservationService {
     @Transactional
     public void handlePaymentFailed(Long reservationId) {
         reservationRepository.findById(reservationId).ifPresent(reservation -> {
+            if (reservation.getStatus() != ReservationStatus.PENDING) {
+                return; // already PAID or CANCELLED — idempotent / out-of-order safe
+            }
             List<Ticket> tickets = ticketRepository.findByReservationReservationId(reservationId);
             tickets.forEach(Ticket::cancel);
             for (Ticket t : tickets) {

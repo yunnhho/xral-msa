@@ -90,9 +90,9 @@ public class QueueController {
         SseEmitter emitter = new SseEmitter(600_000L); // Q3: 10분
         emitterRegistry.register(scope, userId, emitter);
 
-        emitter.onCompletion(() -> emitterRegistry.remove(scope, userId));
-        emitter.onTimeout(() -> emitterRegistry.remove(scope, userId));
-        emitter.onError(e -> emitterRegistry.remove(scope, userId));
+        emitter.onCompletion(() -> emitterRegistry.remove(scope, userId, emitter));
+        emitter.onTimeout(() -> emitterRegistry.remove(scope, userId, emitter));
+        emitter.onError(e -> emitterRegistry.remove(scope, userId, emitter));
 
         QueueService.QueueStatus current = queueService.getStatus(userId, scope);
         try {

@@ -21,11 +21,11 @@ public enum ErrorCode {
 
     // Train
     SEAT_ALREADY_TAKEN(HttpStatus.CONFLICT, "SEAT_ALREADY_TAKEN", "이미 예약된 좌석입니다."),
-    LATE_RESERVATION(HttpStatus.UNPROCESSABLE_ENTITY, "LATE_RESERVATION", "출발 시각이 임박하여 예약할 수 없습니다."),
+    LATE_RESERVATION(HttpStatus.UNPROCESSABLE_ENTITY, "LATE_RESERVATION", "이미 출발했거나 출발 시각이 임박하여 예약할 수 없습니다."),
     STATION_NOT_IN_ROUTE(HttpStatus.UNPROCESSABLE_ENTITY, "STATION_NOT_IN_ROUTE", "노선에 포함되지 않은 역입니다."),
     INVALID_ROUTE(HttpStatus.BAD_REQUEST, "INVALID_ROUTE", "출발역과 도착역이 동일하거나 유효하지 않은 노선입니다."),
     RESERVATION_NOT_FOUND(HttpStatus.NOT_FOUND, "RESERVATION_NOT_FOUND", "예약을 찾을 수 없습니다."),
-    RESERVATION_EXPIRED(HttpStatus.GONE, "RESERVATION_EXPIRED", "만료된 예약입니다."),
+    RESERVATION_EXPIRED(HttpStatus.GONE, "RESERVATION_EXPIRED", "예약 가능 시간이 만료되었습니다."),
 
     // Payment
     PAYMENT_FAILED(HttpStatus.UNPROCESSABLE_ENTITY, "PAYMENT_FAILED", "결제 처리에 실패했습니다."),
@@ -38,7 +38,7 @@ public enum ErrorCode {
 
     // Gateway
     CAPTCHA_FAILED(HttpStatus.UNAUTHORIZED, "CAPTCHA_FAILED", "CAPTCHA 검증에 실패했습니다."),
-    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "요청 횟수를 초과했습니다."),
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED", "요청이 너무 많습니다. 잠시 후 다시 시도해주세요."),
 
     // Common
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "서버 내부 오류가 발생했습니다.");

@@ -45,6 +45,8 @@ public class NonMemberService {
 
         String access = jwtTokenProvider.issueAccessToken(nonMember.getUserId(), nonMember.getRole(), nonMember.getName());
         String refresh = jwtTokenProvider.issueRefreshToken(nonMember.getUserId());
+        // login과 동일하게 refresh 토큰을 저장해야 이후 rotate(refresh)가 동작한다.
+        refreshTokenService.save(nonMember.getUserId(), refresh, null, null, null);
         return new NonMemberResponse(nonMember.getUserId(), nonMember.getName(), nonMember.getRole().name(), accessCode, access, refresh);
     }
 

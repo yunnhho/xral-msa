@@ -102,9 +102,11 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                                             String ip, String bucket, long minuteWindow, long capacity, String path) {
         String localKey = ip + ":" + bucket + ":" + minuteWindow;
 
-        // 분이 바뀌면 오래된 키가 자동으로 유효하지 않아짐. 맵이 너무 커지면 전체 초기화.
+        // 맵이 커지면 지난 분(window) 키만 정리한다. 전체 clear()는 현재 윈도우 카운터까지
+        // 날려 순간적으로 모든 IP의 rate limit이 해제되는 보호 공백을 만들기 때문에 사용하지 않는다.
         if (localCounts.size() > 5_000) {
-            localCounts.clear();
+            String currentSuffix = ":" + minuteWindow;
+            localCounts.keySet().removeIf(k -> !k.endsWith(currentSuffix));
         }
 
         long count = localCounts.computeIfAbsent(localKey, k -> new AtomicLong()).incrementAndGet();

@@ -25,8 +25,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Collections;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -71,6 +72,9 @@ class ReservationServiceTest {
         mockSchedule = mock(Schedule.class);
         lenient().when(mockSchedule.getRoute()).thenReturn(route);
         lenient().when(mockSchedule.getScheduleId()).thenReturn(1L);
+        // 기본값: 내일 출발 (예약 가능)
+        lenient().when(mockSchedule.getDepartureDate()).thenReturn(LocalDate.now().plusDays(1));
+        lenient().when(mockSchedule.getDepartureTime()).thenReturn(LocalTime.of(9, 0));
 
         mockDepRS = mock(RouteStation.class);
         lenient().when(mockDepRS.getStationSequence()).thenReturn(0);
@@ -185,6 +189,80 @@ class ReservationServiceTest {
         verify(luaScriptService).rollback(1L, 5L, 0, 3);
     }
 
+    // ===== create — reservation rules =====
+
+    @Test
+    void create_pastDeparture_throwsLateReservation() {
+        when(reservationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+        when(scheduleRepository.findById(1L)).thenReturn(Optional.of(mockSchedule));
+        when(mockSchedule.getDepartureDate()).thenReturn(LocalDate.now().minusDays(1));
+
+        ReservationRequest request = new ReservationRequest(1L, 10L, 20L, List.of(5L));
+
+        assertThatThrownBy(() -> reservationService.create(42L, "테스트", request, "new-key"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.LATE_RESERVATION));
+
+        verify(luaScriptService, never()).tryReserve(anyLong(), anyLong(), any(int.class), any(int.class));
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
+    void create_imminentDeparture_throwsLateReservation() {
+        when(reservationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+        when(scheduleRepository.findById(1L)).thenReturn(Optional.of(mockSchedule));
+        // 출발 5분 전 — 마감(10분) 이내
+        LocalDateTime soon = LocalDateTime.now().plusMinutes(5);
+        when(mockSchedule.getDepartureDate()).thenReturn(soon.toLocalDate());
+        when(mockSchedule.getDepartureTime()).thenReturn(soon.toLocalTime());
+
+        ReservationRequest request = new ReservationRequest(1L, 10L, 20L, List.of(5L));
+
+        assertThatThrownBy(() -> reservationService.create(42L, "테스트", request, "new-key"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.LATE_RESERVATION));
+
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
+    void create_sameDepartureAndArrival_throwsInvalidRoute() {
+        when(reservationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+        when(scheduleRepository.findById(1L)).thenReturn(Optional.of(mockSchedule));
+
+        ReservationRequest request = new ReservationRequest(1L, 10L, 10L, List.of(5L));
+
+        assertThatThrownBy(() -> reservationService.create(42L, "테스트", request, "new-key"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_ROUTE));
+
+        verify(reservationRepository, never()).save(any());
+    }
+
+    @Test
+    void create_reverseDirection_throwsInvalidRoute() {
+        when(reservationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+        when(scheduleRepository.findById(1L)).thenReturn(Optional.of(mockSchedule));
+        // 출발역 시퀀스(3) > 도착역 시퀀스(0) — 역방향
+        when(routeStationRepository.findByRouteRouteIdAndStationStationId(100L, 10L))
+                .thenReturn(Optional.of(mockArrRS)); // seq 3
+        when(routeStationRepository.findByRouteRouteIdAndStationStationId(100L, 20L))
+                .thenReturn(Optional.of(mockDepRS)); // seq 0
+
+        ReservationRequest request = new ReservationRequest(1L, 10L, 20L, List.of(5L));
+
+        assertThatThrownBy(() -> reservationService.create(42L, "테스트", request, "new-key"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.INVALID_ROUTE));
+
+        verify(luaScriptService, never()).tryReserve(anyLong(), anyLong(), any(int.class), any(int.class));
+        verify(reservationRepository, never()).save(any());
+    }
+
     // ===== getById =====
 
     @Test
@@ -195,6 +273,37 @@ class ReservationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
                         .isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    // ===== cancelByAdmin — force cancel =====
+
+    @Test
+    void cancelByAdmin_rollbacksSeatsAndPublishesAdminCancel() {
+        Ticket ticket = mock(Ticket.class);
+        when(ticket.getScheduleId()).thenReturn(1L);
+        when(ticket.getSeatId()).thenReturn(5L);
+        when(ticket.getStartStationIdx()).thenReturn(0);
+        when(ticket.getEndStationIdx()).thenReturn(3);
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(savedReservation));
+        when(ticketRepository.findByReservationReservationId(any())).thenReturn(List.of(ticket));
+
+        reservationService.cancelByAdmin(1L);
+
+        verify(luaScriptService).rollback(1L, 5L, 0, 3);
+        verify(eventProducer).publishSeatReleased(any(), anyList(), eq("ADMIN_CANCEL"));
+        assertThat(savedReservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+    }
+
+    @Test
+    void cancelByAdmin_alreadyCancelled_noOp() {
+        Reservation cancelled = mock(Reservation.class);
+        when(cancelled.getStatus()).thenReturn(ReservationStatus.CANCELLED);
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(cancelled));
+
+        reservationService.cancelByAdmin(1L);
+
+        verify(luaScriptService, never()).rollback(anyLong(), anyLong(), any(int.class), any(int.class));
+        verify(eventProducer, never()).publishSeatReleased(any(), anyList(), any());
     }
 
     // ===== handlePaymentCompleted — idempotency =====
@@ -220,12 +329,27 @@ class ReservationServiceTest {
         when(ticket.getSeatId()).thenReturn(5L);
         when(ticket.getStartStationIdx()).thenReturn(0);
         when(ticket.getEndStationIdx()).thenReturn(3);
+        // expireReservation re-fetches inside the transaction (detached-entity fix)
+        when(reservationRepository.findById(any())).thenReturn(Optional.of(savedReservation));
         when(ticketRepository.findByReservationReservationId(any())).thenReturn(List.of(ticket));
 
         reservationService.expireReservation(savedReservation);
 
         verify(luaScriptService).rollback(1L, 5L, 0, 3);
         verify(eventProducer).publishSeatReleased(any(), anyList(), eq("TIMEOUT"));
+    }
+
+    @Test
+    void expireReservation_alreadyPaid_noOp() {
+        // Race guard: reservation became PAID after the scheduler's query → must not cancel
+        Reservation paid = mock(Reservation.class);
+        when(paid.getStatus()).thenReturn(ReservationStatus.PAID);
+        when(reservationRepository.findById(any())).thenReturn(Optional.of(paid));
+
+        reservationService.expireReservation(savedReservation);
+
+        verify(luaScriptService, never()).rollback(anyLong(), anyLong(), any(int.class), any(int.class));
+        verify(eventProducer, never()).publishSeatReleased(any(), anyList(), any());
     }
 
     // ===== handlePaymentFailed =====
@@ -244,5 +368,19 @@ class ReservationServiceTest {
 
         verify(luaScriptService).rollback(1L, 5L, 0, 3);
         verify(eventProducer).publishSeatReleased(any(), anyList(), eq("PAYMENT_FAILED"));
+    }
+
+    @Test
+    void handlePaymentFailed_alreadyCancelled_noOp() {
+        // Idempotency guard: duplicate payment.failed must not re-rollback (would free
+        // bits possibly re-acquired by another reservation)
+        Reservation cancelled = mock(Reservation.class);
+        when(cancelled.getStatus()).thenReturn(ReservationStatus.CANCELLED);
+        when(reservationRepository.findById(1L)).thenReturn(Optional.of(cancelled));
+
+        reservationService.handlePaymentFailed(1L);
+
+        verify(luaScriptService, never()).rollback(anyLong(), anyLong(), any(int.class), any(int.class));
+        verify(eventProducer, never()).publishSeatReleased(any(), anyList(), any());
     }
 }

@@ -11,6 +11,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,7 +35,7 @@ public class TrainEventProducer {
                 startIdx,
                 endIdx,
                 reservation.getTotalPrice(),
-                reservation.getExpiresAt().toString()
+                reservation.getExpiresAt().atOffset(ZoneOffset.UTC).toString()
         );
         kafkaTemplate.send(Topics.RESERVATION_CREATED, String.valueOf(reservation.getReservationId()), event);
         log.info("Published reservation.created reservationId={}", reservation.getReservationId());

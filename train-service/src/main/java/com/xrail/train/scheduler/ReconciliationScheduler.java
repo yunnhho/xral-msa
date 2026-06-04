@@ -13,7 +13,9 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Component
@@ -26,6 +28,11 @@ public class ReconciliationScheduler {
     private final TicketRepository ticketRepository;
     private final TrainEventProducer eventProducer;
     private final RedissonClient redissonClient;
+
+    // Phantom 비트는 연속 2회 reconcile에서 모두 phantom일 때만 제거한다.
+    // 직전 사이클에 set되었으나 아직 커밋되지 않은 in-flight 예약의 비트를
+    // 한 사이클만에 phantom으로 오인해 제거하는 race를 방지한다.
+    private Set<String> previousPhantomCandidates = new HashSet<>();
 
     // Bug #2 fix: 서비스 기동 시 DB → Redis 복원 (재시작 후 bitmask 초기화 대응)
     @EventListener(ApplicationReadyEvent.class)
@@ -63,16 +70,19 @@ public class ReconciliationScheduler {
         int phantomCleared = 0;
         int missingRestored = 0;
 
-        // 1단계: phantom 비트 제거 (Redis에 있지만 DB에 없는 비트)
+        // 1단계: phantom 비트 제거 (Redis에 있지만 DB에 없는 비트).
+        // 연속 2회 phantom으로 확인된 비트만 제거 (in-flight 예약 보호).
+        Set<String> currentPhantomCandidates = new HashSet<>();
         Iterable<String> keys = redissonClient.getKeys().getKeysByPattern("sch:*:seat:*");
         for (String key : keys) {
             try {
-                boolean hadPhantom = removePhantomBits(key);
+                boolean hadPhantom = removePhantomBits(key, currentPhantomCandidates);
                 if (hadPhantom) phantomCleared++;
             } catch (Exception e) {
                 log.error("Reconciliation phantom-clear error for key={}", key, e);
             }
         }
+        previousPhantomCandidates = currentPhantomCandidates;
 
         // 2단계: 누락 비트 복원 (DB에 있지만 Redis에 없는 비트) — Bug #2 fix
         try {
@@ -104,7 +114,7 @@ public class ReconciliationScheduler {
                 phantomCleared, missingRestored);
     }
 
-    private boolean removePhantomBits(String key) {
+    private boolean removePhantomBits(String key, Set<String> currentPhantomCandidates) {
         String[] parts = key.split(":");
         if (parts.length != 4) return false;
 
@@ -125,11 +135,18 @@ public class ReconciliationScheduler {
             final int b = bit;
             boolean covered = activeTickets.stream()
                     .anyMatch(t -> b >= t.getStartStationIdx() && b < t.getEndStationIdx());
-            if (!covered) {
-                luaScriptService.rollback(scheduleId, seatId, bit, bit + 1);
-                hadPhantom = true;
-                log.warn("Cleared phantom bit key={} bit={}", key, bit);
+            if (covered) continue;
+
+            String candidateId = key + "#" + bit;
+            currentPhantomCandidates.add(candidateId);
+            if (!previousPhantomCandidates.contains(candidateId)) {
+                // 첫 관측 — in-flight 예약일 수 있으므로 이번 사이클엔 제거하지 않음
+                log.debug("Phantom candidate (deferred) key={} bit={}", key, bit);
+                continue;
             }
+            luaScriptService.rollback(scheduleId, seatId, bit, bit + 1);
+            hadPhantom = true;
+            log.warn("Cleared phantom bit key={} bit={}", key, bit);
         }
         if (hadPhantom) eventProducer.publishSeatReleasedReconcile(scheduleId, seatId);
         return hadPhantom;

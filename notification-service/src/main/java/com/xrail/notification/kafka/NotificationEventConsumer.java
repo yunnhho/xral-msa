@@ -125,7 +125,7 @@ public class NotificationEventConsumer {
         return switch (reason) {
             case "TIMEOUT" -> "SEAT_RELEASED_TIMEOUT";
             case "PAYMENT_FAILED" -> "PAYMENT_FAILED";
-            case "USER_CANCEL" -> "SEAT_RELEASED_TIMEOUT"; // 취소 알림 (1차: 같은 템플릿)
+            case "USER_CANCEL", "ADMIN_CANCEL" -> "SEAT_RELEASED_TIMEOUT"; // 취소 알림 (1차: 같은 템플릿)
             default -> null; // RECONCILE 등은 알림 불필요
         };
     }

@@ -40,10 +40,10 @@ public class RedisQueueEventListener {
                     emitter.complete();
                 }
             } catch (IOException e) {
-                emitterRegistry.remove(msg.scope(), msg.userId());
+                emitterRegistry.remove(msg.scope(), msg.userId(), emitter);
             } catch (Exception e) {
                 log.warn("SSE send error userId={} event={}", msg.userId(), msg.eventName(), e);
-                emitterRegistry.remove(msg.scope(), msg.userId());
+                emitterRegistry.remove(msg.scope(), msg.userId(), emitter);
             }
         });
         log.info("Subscribed to Redis topic={} listenerId={}", TOPIC_NAME, listenerId);

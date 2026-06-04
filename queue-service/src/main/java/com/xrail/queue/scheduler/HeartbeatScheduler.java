@@ -32,7 +32,7 @@ public class HeartbeatScheduler {
                 try {
                     entry.getValue().send(SseEmitter.event().name("heartbeat").data("{}"));
                 } catch (IOException e) {
-                    emitterRegistry.remove(scope, entry.getKey());
+                    emitterRegistry.remove(scope, entry.getKey(), entry.getValue());
                 }
             }
         }

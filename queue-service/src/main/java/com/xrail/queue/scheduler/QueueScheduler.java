@@ -80,7 +80,7 @@ public class QueueScheduler {
             emitter.send(SseEmitter.event().name("active").data(data));
             emitter.complete();
         } catch (IOException e) {
-            emitterRegistry.remove(scope, userId);
+            emitterRegistry.remove(scope, userId, emitter);
         }
     }
 
@@ -102,7 +102,7 @@ public class QueueScheduler {
                                 "expectedWaitSeconds", estimateWaitSeconds(rank)
                         )));
             } catch (IOException e) {
-                emitterRegistry.remove(scope, userId);
+                emitterRegistry.remove(scope, userId, emitter);
             }
         }
     }
