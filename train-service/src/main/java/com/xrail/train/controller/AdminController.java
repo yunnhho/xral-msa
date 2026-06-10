@@ -5,12 +5,16 @@ import com.xrail.common.exception.BusinessException;
 import com.xrail.common.exception.ErrorCode;
 import com.xrail.common.header.Headers;
 import com.xrail.common.security.Roles;
+import com.xrail.train.dto.OutboxStatusResponse;
 import com.xrail.train.dto.ReservationResponse;
 import com.xrail.train.dto.ReservationStatsResponse;
 import com.xrail.train.entity.DltAlertLog;
+import com.xrail.train.entity.OutboxEvent;
 import com.xrail.train.entity.ReservationSagaLog;
+import com.xrail.train.entity.enums.OutboxStatus;
 import com.xrail.train.entity.enums.ReservationStatus;
 import com.xrail.train.repository.DltAlertLogRepository;
+import com.xrail.train.repository.OutboxEventRepository;
 import com.xrail.train.service.ReservationService;
 import com.xrail.train.service.SagaLogService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,6 +33,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+
 @Tag(name = "Admin", description = "운영자 전용 — DLT 알림·예약 모니터링·Saga 로그·강제 취소 API")
 @RestController
 @RequestMapping("/api/admin")
@@ -36,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminController {
 
     private final DltAlertLogRepository dltAlertLogRepository;
+    private final OutboxEventRepository outboxEventRepository;
     private final ReservationService reservationService;
     private final SagaLogService sagaLogService;
 
@@ -92,6 +100,20 @@ public class AdminController {
             @PathVariable Long reservationId) {
         requireAdmin(userRole);
         reservationService.cancelByAdmin(reservationId);
+    }
+
+    @Operation(summary = "Outbox 상태 조회", description = "Transactional Outbox PENDING/SENT 건수와 최장 미발행 경과초.")
+    @GetMapping("/outbox")
+    public ApiResponse<OutboxStatusResponse> outboxStatus(
+            @RequestHeader(value = Headers.USER_ROLE, defaultValue = "") String userRole) {
+        requireAdmin(userRole);
+        long pending = outboxEventRepository.countByStatus(OutboxStatus.PENDING);
+        long sent = outboxEventRepository.countByStatus(OutboxStatus.SENT);
+        Long oldestAge = outboxEventRepository.findFirstByStatusOrderByIdAsc(OutboxStatus.PENDING)
+                .map(OutboxEvent::getCreatedAt)
+                .map(created -> Duration.between(created, LocalDateTime.now()).getSeconds())
+                .orElse(null);
+        return ApiResponse.ok(new OutboxStatusResponse(pending, sent, oldestAge));
     }
 
     @Operation(summary = "Saga 로그 조회", description = "예약 보상 이벤트 흐름 추적 로그. reservationId 파라미터로 필터링 가능.")

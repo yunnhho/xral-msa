@@ -81,13 +81,29 @@ export default function SeatPage() {
         { scheduleId: state!.schedule.scheduleId, departureStationId: Number(state!.departureStationId), arrivalStationId: Number(state!.arrivalStationId), seatIds: Array.from(selected) },
         { headers: { 'X-Queue-Token': state!.queueToken, 'Idempotency-Key': idempotencyKey.current } },
       )
-      if (data.data) navigate('/payment', { state: { reservation: data.data } })
+      if (data.data) {
+        // 일회성 큐 토큰은 예약 성공 시 소비됨 — 대기열을 떠나 소비된 토큰이 버킷에 남지 않게 하고
+        // active 슬롯도 즉시 반납한다 (안 하면 토큰 TTL 동안 재예매가 401로 거부됨).
+        client.post('/api/queue/leave').catch(() => {})
+        navigate('/payment', { state: { reservation: data.data } })
+      }
     } catch (err: unknown) {
-      const resp = (err as { response?: { data?: ApiResponse<unknown> } })?.response?.data
+      const e = err as { response?: { status?: number; data?: ApiResponse<unknown> } }
+      const resp = e?.response?.data
       if (resp?.code === 'SEAT_ALREADY_TAKEN') {
         setError('선택한 좌석이 이미 예약되었습니다. 다른 좌석을 선택해주세요.')
         setSelected(new Set())
         loadSeats()
+      } else if (e?.response?.status === 401) {
+        // 큐 토큰 만료/사용됨 — 스테일 토큰 버킷을 비우고 대기열로 재진입
+        await client.post('/api/queue/leave').catch(() => {})
+        navigate('/queue', {
+          state: {
+            schedule: state!.schedule,
+            departureStationId: state!.departureStationId,
+            arrivalStationId: state!.arrivalStationId,
+          },
+        })
       } else {
         setError(resp?.message ?? '예약 실패')
       }

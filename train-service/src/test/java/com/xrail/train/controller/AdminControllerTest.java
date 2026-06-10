@@ -3,7 +3,9 @@ package com.xrail.train.controller;
 import com.xrail.common.header.Headers;
 import com.xrail.train.dto.ReservationStatsResponse;
 import com.xrail.train.exception.TrainExceptionHandler;
+import com.xrail.train.entity.enums.OutboxStatus;
 import com.xrail.train.repository.DltAlertLogRepository;
+import com.xrail.train.repository.OutboxEventRepository;
 import com.xrail.train.repository.ReservationRepository;
 import com.xrail.train.repository.SeatRepository;
 import com.xrail.train.repository.TicketRepository;
@@ -39,6 +41,7 @@ class AdminControllerTest {
     private MockMvc mockMvc;
 
     @MockBean private DltAlertLogRepository dltAlertLogRepository;
+    @MockBean private OutboxEventRepository outboxEventRepository;
     @MockBean private ReservationService reservationService;
     @MockBean private SagaLogService sagaLogService;
 
@@ -69,6 +72,28 @@ class AdminControllerTest {
                 .andExpect(jsonPath("$.data.total").value(10))
                 .andExpect(jsonPath("$.data.paid").value(5))
                 .andExpect(jsonPath("$.data.paidRevenue").value(150_000));
+    }
+
+    @Test
+    void outboxStatus_admin_returnsCounts() throws Exception {
+        when(outboxEventRepository.countByStatus(OutboxStatus.PENDING)).thenReturn(2L);
+        when(outboxEventRepository.countByStatus(OutboxStatus.SENT)).thenReturn(7L);
+        when(outboxEventRepository.findFirstByStatusOrderByIdAsc(OutboxStatus.PENDING))
+                .thenReturn(java.util.Optional.empty());
+
+        mockMvc.perform(get("/api/admin/outbox")
+                        .header(Headers.USER_ROLE, "ROLE_ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.pending").value(2))
+                .andExpect(jsonPath("$.data.sent").value(7))
+                .andExpect(jsonPath("$.data.oldestPendingAgeSeconds").doesNotExist());
+    }
+
+    @Test
+    void outboxStatus_nonAdmin_forbidden() throws Exception {
+        mockMvc.perform(get("/api/admin/outbox")
+                        .header(Headers.USER_ROLE, "ROLE_MEMBER"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

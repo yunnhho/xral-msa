@@ -40,7 +40,7 @@ export default function ReservationsPage() {
   useEffect(() => {
     if (!justPaid || !paidId) return
     let attempts = 0
-    pollRef.current = setInterval(() => {
+    const check = () => {
       attempts++
       client.get<ApiResponse<Reservation[]>>('/api/reservations').then(({ data }) => {
         const list = data.data ?? []
@@ -51,7 +51,9 @@ export default function ReservationsPage() {
           if (paid) setPaidConfirmed(true)
         }
       }).catch(() => { if (attempts >= 10) clearInterval(pollRef.current!) })
-    }, 2000)
+    }
+    check() // 이미 PAID 반영된 경우(새로고침 등) 첫 폴링 주기를 기다리지 않고 즉시 배너 해제
+    pollRef.current = setInterval(check, 2000)
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [justPaid, paidId])
 

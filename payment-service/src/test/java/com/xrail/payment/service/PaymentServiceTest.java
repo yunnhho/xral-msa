@@ -197,6 +197,35 @@ class PaymentServiceTest {
         verify(paymentGateway).charge(any(), eq(45_000L), anyString());
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void invalidCoupon_rejectedBeforeCharge() throws InterruptedException {
+        RLock lock = mock(RLock.class);
+        when(redissonClient.getLock(anyString())).thenReturn(lock);
+        when(lock.tryLock(anyLong(), anyLong(), any())).thenReturn(true);
+        when(lock.isHeldByCurrentThread()).thenReturn(true);
+
+        TransactionStatus txStatus = mock(TransactionStatus.class);
+        when(txManager.getTransaction(any())).thenReturn(txStatus);
+
+        RBucket<Map<String, Object>> idemBucket = mock(RBucket.class);
+        when(redissonClient.getBucket(startsWith("payment:idem:"))).thenReturn((RBucket) idemBucket);
+        when(idemBucket.get()).thenReturn(null);
+
+        when(paymentRepository.findByIdempotencyKey(anyString())).thenReturn(Optional.empty());
+        when(couponService.applyDiscount("BADCODE", 50_000L))
+                .thenThrow(new BusinessException(ErrorCode.COUPON_INVALID));
+
+        assertThatThrownBy(() -> paymentService.pay(1L,
+                new PaymentRequest(100L, 50_000L, "CARD", "BADCODE"), "idem-key"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.COUPON_INVALID));
+        // 결제 INSERT/PG 호출 전에 거부된다
+        verify(paymentRepository, org.mockito.Mockito.never()).save(any(Payment.class));
+        verify(paymentGateway, org.mockito.Mockito.never()).charge(any(), anyLong(), anyString());
+    }
+
     // ===== 환불 사가 =====
 
     @Test

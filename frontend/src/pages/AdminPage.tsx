@@ -60,6 +60,7 @@ function Dashboard() {
   const [pay, setPay] = useState<PaymentStats | null>(null)
   const [notif, setNotif] = useState<NotificationStats | null>(null)
   const [outbox, setOutbox] = useState<OutboxStatus | null>(null)
+  const [trainOutbox, setTrainOutbox] = useState<OutboxStatus | null>(null)
   const [err, setErr] = useState('')
 
   const load = useCallback(() => {
@@ -69,12 +70,14 @@ function Dashboard() {
       client.get<ApiResponse<PaymentStats>>('/api/admin/payments/stats'),
       client.get<ApiResponse<NotificationStats>>('/api/admin/notifications/stats'),
       client.get<ApiResponse<OutboxStatus>>('/api/admin/payments/outbox'),
-    ]).then(([r, p, n, o]) => {
+      client.get<ApiResponse<OutboxStatus>>('/api/admin/outbox'),
+    ]).then(([r, p, n, o, t]) => {
       if (r.status === 'fulfilled') setResv(r.value.data.data)
       if (p.status === 'fulfilled') setPay(p.value.data.data)
       if (n.status === 'fulfilled') setNotif(n.value.data.data)
       if (o.status === 'fulfilled') setOutbox(o.value.data.data)
-      if ([r, p, n, o].every(x => x.status === 'rejected')) setErr('통계를 불러오지 못했습니다. (권한/서비스 상태 확인)')
+      if (t.status === 'fulfilled') setTrainOutbox(t.value.data.data)
+      if ([r, p, n, o, t].every(x => x.status === 'rejected')) setErr('통계를 불러오지 못했습니다. (권한/서비스 상태 확인)')
     })
   }, [])
   useEffect(() => { load() }, [load])
@@ -100,17 +103,22 @@ function Dashboard() {
       <SectionRow title="알림 / Outbox">
         <Stat label="알림 발송" value={notif?.sent} color={C.success} />
         <Stat label="알림 실패" value={notif?.failed} color={notif && notif.failed > 0 ? C.danger : C.textMuted} />
-        <Stat label="Outbox 발행" value={outbox?.sent} />
-        <Stat label="Outbox 대기" value={outbox?.pending}
+        <Stat label="payment Outbox 발행" value={outbox?.sent} />
+        <Stat label="payment Outbox 대기" value={outbox?.pending}
           color={outbox && outbox.pending > 0 ? C.warning : C.textMuted} />
+        <Stat label="train Outbox 발행" value={trainOutbox?.sent} />
+        <Stat label="train Outbox 대기" value={trainOutbox?.pending}
+          color={trainOutbox && trainOutbox.pending > 0 ? C.warning : C.textMuted} />
         <Stat label="최장 미발행"
-          value={outbox ? (outbox.oldestPendingAgeSeconds != null ? `${outbox.oldestPendingAgeSeconds}s` : '없음') : undefined}
-          color={outbox && (outbox.oldestPendingAgeSeconds ?? 0) > 10 ? C.danger : C.textMuted} />
+          value={outbox || trainOutbox
+            ? `${Math.max(outbox?.oldestPendingAgeSeconds ?? 0, trainOutbox?.oldestPendingAgeSeconds ?? 0)}s`
+            : undefined}
+          color={Math.max(outbox?.oldestPendingAgeSeconds ?? 0, trainOutbox?.oldestPendingAgeSeconds ?? 0) > 10 ? C.danger : C.textMuted} />
       </SectionRow>
 
-      {outbox && outbox.pending > 0 && (
+      {((outbox?.pending ?? 0) + (trainOutbox?.pending ?? 0)) > 0 && (
         <div style={{ background: C.warningBg, border: '1px solid #fde68a', borderRadius: 6, padding: '10px 14px', fontSize: 13, color: C.warning, marginTop: 4 }}>
-          ⚠ 미발행 Outbox 이벤트 {outbox.pending}건 — relay 발행이 지연되고 있을 수 있습니다.
+          ⚠ 미발행 Outbox 이벤트 {(outbox?.pending ?? 0) + (trainOutbox?.pending ?? 0)}건 — relay 발행이 지연되고 있을 수 있습니다.
         </div>
       )}
       {err && <div style={{ color: C.danger, fontSize: 13, marginTop: 8 }}>{err}</div>}

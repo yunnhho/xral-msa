@@ -95,9 +95,12 @@ class CouponServiceTest {
     }
 
     @Test
-    void applyDiscount_invalidCode_returnsOriginalAmount() {
-        long result = couponService.applyDiscount("INVALID", 50_000L);
-        assertThat(result).isEqualTo(50_000L);
+    void applyDiscount_invalidCode_throwsCouponInvalid() {
+        // 잘못된 코드로 전액 결제가 조용히 진행되지 않도록 validate와 동일하게 거부한다.
+        assertThatThrownBy(() -> couponService.applyDiscount("INVALID", 50_000L))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode())
+                        .isEqualTo(ErrorCode.COUPON_INVALID));
     }
 
     @Test

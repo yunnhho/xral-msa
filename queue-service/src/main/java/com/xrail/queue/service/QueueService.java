@@ -79,7 +79,9 @@ public class QueueService {
         // scope 목록에 추가 (스케줄러 순회용)
         redissonClient.getSet(SCOPES_KEY).add(scope);
 
-        meterRegistry.gauge("xrail.queue.waiting.size", waitingSet, RScoredSortedSet::size);
+        // scope 태그 없이 등록하면 모든 scope가 한 게이지로 합쳐져 최초 등록된 scope의 크기만 보인다.
+        meterRegistry.gauge("xrail.queue.waiting.size", io.micrometer.core.instrument.Tags.of("scope", scope),
+                waitingSet, RScoredSortedSet::size);
         return buildWaitingResult(userId, scope);
     }
 

@@ -4,23 +4,29 @@ import com.xrail.common.kafka.Topics;
 import com.xrail.common.kafka.event.*;
 import com.xrail.train.entity.Reservation;
 import com.xrail.train.entity.Ticket;
+import com.xrail.train.service.OutboxRecorder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * P4: 모든 이벤트는 직접 Kafka로 보내지 않고 호출자의 트랜잭션 안에서 outbox에 기록한다.
+ * 실제 발행은 OutboxRelayScheduler가 커밋 후 수행 — DB 커밋과 발행의 원자성 보장.
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class TrainEventProducer {
 
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private static final String OUTBOX_AGGREGATE = "Reservation";
+
+    private final OutboxRecorder outboxRecorder;
 
     public void publishReservationCreated(Reservation reservation, List<Ticket> tickets, int startIdx, int endIdx) {
         ReservationCreatedEvent event = new ReservationCreatedEvent(
@@ -35,10 +41,10 @@ public class TrainEventProducer {
                 startIdx,
                 endIdx,
                 reservation.getTotalPrice(),
-                reservation.getExpiresAt().atOffset(ZoneOffset.UTC).toString()
+                reservation.getExpiresAt().atZone(ZoneId.systemDefault()).toOffsetDateTime().toString()
         );
-        kafkaTemplate.send(Topics.RESERVATION_CREATED, String.valueOf(reservation.getReservationId()), event);
-        log.info("Published reservation.created reservationId={}", reservation.getReservationId());
+        record(Topics.RESERVATION_CREATED, reservation.getReservationId(), event);
+        log.info("Recorded reservation.created to outbox reservationId={}", reservation.getReservationId());
     }
 
     public void publishSeatLocked(Reservation reservation, List<Long> seatIds, Long scheduleId) {
@@ -50,7 +56,7 @@ public class TrainEventProducer {
                 scheduleId,
                 seatIds
         );
-        kafkaTemplate.send(Topics.SEAT_LOCKED, String.valueOf(reservation.getReservationId()), event);
+        record(Topics.SEAT_LOCKED, reservation.getReservationId(), event);
     }
 
     public void publishSeatLockFailed(Long reservationId, Long userId, Long scheduleId, List<Long> seatIds, String reason) {
@@ -64,7 +70,7 @@ public class TrainEventProducer {
                 seatIds,
                 reason
         );
-        kafkaTemplate.send(Topics.SEAT_LOCK_FAILED, String.valueOf(reservationId), event);
+        record(Topics.SEAT_LOCK_FAILED, reservationId, event);
     }
 
     public void publishSeatConfirmed(Reservation reservation, List<Ticket> tickets) {
@@ -76,8 +82,8 @@ public class TrainEventProducer {
                 reservation.getUserId(),
                 tickets.stream().map(Ticket::getTicketId).toList()
         );
-        kafkaTemplate.send(Topics.SEAT_CONFIRMED, String.valueOf(reservation.getReservationId()), event);
-        log.info("Published seat.confirmed reservationId={}", reservation.getReservationId());
+        record(Topics.SEAT_CONFIRMED, reservation.getReservationId(), event);
+        log.info("Recorded seat.confirmed to outbox reservationId={}", reservation.getReservationId());
     }
 
     public void publishSeatReleased(Reservation reservation, List<Ticket> tickets, String reason) {
@@ -96,8 +102,8 @@ public class TrainEventProducer {
                 endIdx,
                 reason
         );
-        kafkaTemplate.send(Topics.SEAT_RELEASED, String.valueOf(reservation.getReservationId()), event);
-        log.info("Published seat.released reservationId={} reason={}", reservation.getReservationId(), reason);
+        record(Topics.SEAT_RELEASED, reservation.getReservationId(), event);
+        log.info("Recorded seat.released to outbox reservationId={} reason={}", reservation.getReservationId(), reason);
     }
 
     public void publishPaymentRefundRequested(Reservation reservation, String reason) {
@@ -109,8 +115,8 @@ public class TrainEventProducer {
                 reservation.getUserId(),
                 reason
         );
-        kafkaTemplate.send(Topics.PAYMENT_REFUND_REQUESTED, String.valueOf(reservation.getReservationId()), event);
-        log.info("Published payment.refund-requested reservationId={} reason={}", reservation.getReservationId(), reason);
+        record(Topics.PAYMENT_REFUND_REQUESTED, reservation.getReservationId(), event);
+        log.info("Recorded payment.refund-requested to outbox reservationId={} reason={}", reservation.getReservationId(), reason);
     }
 
     public void publishSeatReleasedReconcile(Long scheduleId, Long seatId) {
@@ -126,7 +132,12 @@ public class TrainEventProducer {
                 null,
                 "RECONCILE"
         );
-        kafkaTemplate.send(Topics.SEAT_RELEASED, String.valueOf(scheduleId), event);
-        log.info("Published seat.released scheduleId={} seatId={} reason=RECONCILE", scheduleId, seatId);
+        record(Topics.SEAT_RELEASED, scheduleId, event);
+        log.info("Recorded seat.released to outbox scheduleId={} seatId={} reason=RECONCILE", scheduleId, seatId);
+    }
+
+    private void record(String topic, Long aggregateId, Object event) {
+        outboxRecorder.record(OUTBOX_AGGREGATE, String.valueOf(aggregateId), topic,
+                String.valueOf(aggregateId), event);
     }
 }

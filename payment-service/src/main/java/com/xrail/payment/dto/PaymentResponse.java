@@ -2,7 +2,7 @@ package com.xrail.payment.dto;
 
 import com.xrail.payment.entity.Payment;
 
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 
 public record PaymentResponse(
         Long paymentId,
@@ -29,7 +29,8 @@ public record PaymentResponse(
                 p.getMethod(),
                 p.getProviderTxnId(),
                 p.getFailureReason(),
-                p.getUpdatedAt() != null ? p.getUpdatedAt().atOffset(ZoneOffset.UTC).toString() : null
+                // LocalDateTime은 JVM 로컬 벽시계 — UTC로 거짓 태깅하면 KST 환경에서 +9h 표시된다.
+                p.getUpdatedAt() != null ? p.getUpdatedAt().atZone(ZoneId.systemDefault()).toOffsetDateTime().toString() : null
         );
     }
 }

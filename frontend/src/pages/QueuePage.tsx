@@ -23,6 +23,8 @@ export default function QueuePage() {
   const [joining, setJoining] = useState(false)
   const [initError, setInitError] = useState('')
   const idempotencyKey = useRef(uuidv4())
+  // StrictMode의 effect 이중 실행 가드 — state(joining)는 비동기라 중복 POST를 못 막는다.
+  const joinRequested = useRef(false)
 
   const { status, error, mode, leave } = useQueueStatus('global', joined)
 
@@ -45,6 +47,8 @@ export default function QueuePage() {
   // 컴포넌트 마운트 시 자동 대기열 진입
   useEffect(() => {
     if (!state?.schedule) return
+    if (joinRequested.current) return
+    joinRequested.current = true
     handleJoin()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

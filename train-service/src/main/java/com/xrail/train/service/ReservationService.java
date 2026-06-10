@@ -156,7 +156,7 @@ public class ReservationService {
                 sagaLogService.recordOutbound(reservation.getReservationId(), Topics.RESERVATION_CREATED, reservation.getReservationId());
             } catch (Exception e) {
                 // Saga log is non-critical; do not roll back the reservation
-                log.warn("Saga log write failed reservationId={} reason={}", reservation.getReservationId(), e.getMessage());
+                log.warn("Saga log write failed reservationId={}", reservation.getReservationId(), e);
             }
             log.info("Reservation created reservationId={} userId={} seats={}", reservation.getReservationId(), userId, request.seatIds());
         } finally {
@@ -254,14 +254,14 @@ public class ReservationService {
         try {
             sagaLogService.recordOutbound(reservationId, Topics.SEAT_RELEASED, reason);
         } catch (Exception e) {
-            log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
+            log.warn("Saga log write failed reservationId={}", reservationId, e);
         }
         if (wasPaid) {
             eventProducer.publishPaymentRefundRequested(reservation, reason);
             try {
                 sagaLogService.recordOutbound(reservationId, Topics.PAYMENT_REFUND_REQUESTED, reason);
             } catch (Exception e) {
-                log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
+                log.warn("Saga log write failed reservationId={}", reservationId, e);
             }
         }
     }
@@ -285,7 +285,7 @@ public class ReservationService {
         try {
             sagaLogService.recordOutbound(reservation.getReservationId(), Topics.SEAT_RELEASED, "TIMEOUT");
         } catch (Exception e) {
-            log.warn("Saga log write failed reservationId={} reason={}", reservation.getReservationId(), e.getMessage());
+            log.warn("Saga log write failed reservationId={}", reservation.getReservationId(), e);
         }
         log.info("Reservation expired reservationId={}", reservation.getReservationId());
     }
@@ -303,7 +303,7 @@ public class ReservationService {
             try {
                 sagaLogService.recordInbound(reservationId, Topics.PAYMENT_COMPLETED, reservationId);
             } catch (Exception e) {
-                log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
+                log.warn("Saga log write failed reservationId={}", reservationId, e);
             }
         });
     }
@@ -317,7 +317,7 @@ public class ReservationService {
         try {
             sagaLogService.recordInbound(reservationId, Topics.PAYMENT_REFUNDED, reservationId);
         } catch (Exception e) {
-            log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
+            log.warn("Saga log write failed reservationId={}", reservationId, e);
         }
         log.info("Refund confirmed reservationId={}", reservationId);
     }
@@ -338,7 +338,7 @@ public class ReservationService {
             try {
                 sagaLogService.recordInbound(reservationId, Topics.PAYMENT_FAILED, reservationId);
             } catch (Exception e) {
-                log.warn("Saga log write failed reservationId={} reason={}", reservationId, e.getMessage());
+                log.warn("Saga log write failed reservationId={}", reservationId, e);
             }
             log.info("Reservation cancelled due to payment failure reservationId={}", reservationId);
         });

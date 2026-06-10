@@ -37,7 +37,8 @@ public class CouponService {
     public long applyDiscount(String code, long amount) {
         if (code == null || code.isBlank()) return amount;
         CouponDef def = COUPONS.get(code.toUpperCase());
-        if (def == null) return amount;
+        // 잘못된 코드를 조용히 무시하면 쿠폰 기록(couponCode)만 남고 전액 청구된다 — validate와 동일하게 거부.
+        if (def == null) throw new BusinessException(ErrorCode.COUPON_INVALID);
         long discount = switch (def.type()) {
             case "PERCENT" -> amount * def.value() / 100;
             case "FIXED"   -> Math.min(def.value(), amount);

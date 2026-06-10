@@ -24,7 +24,7 @@
 ### T3. Saga 보상 책임
 - `payment.failed` 수신 시: `rollback_seat.lua` → `Reservation.status = CANCELLED` → `seat.released(PAYMENT_FAILED)` emit. 이 세 단계는 하나의 트랜잭션.
 - `payment.completed` 컨슈머는 멱등: `Reservation.status`가 이미 `PAID`면 no-op 후 정상 커밋.
-- 보상 이벤트 emit 실패 시 예외를 삼키지 않는다 — Kafka retry → DLT로 격리.
+- **Transactional Outbox (P4)**: `TrainEventProducer`의 모든 이벤트는 직접 Kafka 발행이 아니라 호출자 트랜잭션 안에서 `OutboxRecorder`로 `outbox_events`에 기록한다. 실제 발행은 `OutboxRelayScheduler`(1초 폴링)가 수행 — DB 커밋과 발행의 원자성 보장, 발행 실패는 PENDING 유지 후 재시도(at-least-once, 컨슈머 멱등으로 안전). 단일 인스턴스 가정(payment-service와 동일 패턴).
 
 ### T4. Scheduler 규칙
 - `ReservationScheduler` (60초 주기): `status=PENDING AND expires_at < now()` 배치 조회 → 건당 Lua rollback + CANCELLED + `seat.released(TIMEOUT)` emit.

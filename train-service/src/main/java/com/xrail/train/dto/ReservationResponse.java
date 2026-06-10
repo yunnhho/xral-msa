@@ -4,7 +4,7 @@ import com.xrail.train.entity.Reservation;
 import com.xrail.train.entity.Ticket;
 
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -32,8 +32,9 @@ public record ReservationResponse(
                 r.getUserId(),
                 r.getStatus().name(),
                 r.getTotalPrice(),
-                r.getReservedAt().atOffset(ZoneOffset.UTC),
-                r.getExpiresAt() != null ? r.getExpiresAt().atOffset(ZoneOffset.UTC) : null,
+                // LocalDateTime은 JVM 로컬 벽시계 — UTC로 거짓 태깅하면 KST 환경에서 +9h 표시된다.
+                r.getReservedAt().atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+                r.getExpiresAt() != null ? r.getExpiresAt().atZone(ZoneId.systemDefault()).toOffsetDateTime() : null,
                 summaries
         );
     }
