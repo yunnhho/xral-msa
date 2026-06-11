@@ -22,12 +22,14 @@ public class LuaScriptService {
 
     private String reserveScript;
     private String rollbackScript;
+    private String checkFreeBatchScript;
 
     @PostConstruct
     public void loadScripts() throws IOException {
         reserveScript = loadResource("lua/reserve_seat.lua");
         rollbackScript = loadResource("lua/rollback_seat.lua");
-        log.info("Lua scripts loaded: reserve_seat.lua, rollback_seat.lua");
+        checkFreeBatchScript = loadResource("lua/check_free_batch.lua");
+        log.info("Lua scripts loaded: reserve_seat.lua, rollback_seat.lua, check_free_batch.lua");
     }
 
     /**
@@ -71,6 +73,28 @@ public class LuaScriptService {
             }
         }
         return true;
+    }
+
+    /**
+     * Checks availability of multiple seats in a single Redis round trip.
+     * 좌석별 GETBIT 왕복(N×segment)을 Lua 1회 호출로 배치 — 조회 경로 성능 핵심.
+     * @return seatIds 순서대로 가용 여부
+     */
+    public List<Boolean> areFree(Long scheduleId, List<Long> seatIds, int startIdx, int endIdx) {
+        if (seatIds.isEmpty()) {
+            return List.of();
+        }
+        List<Object> keys = seatIds.stream()
+                .map(seatId -> (Object) buildKey(scheduleId, seatId))
+                .toList();
+        List<Long> result = redissonClient.getScript(IntegerCodec.INSTANCE).eval(
+                RScript.Mode.READ_ONLY,
+                checkFreeBatchScript,
+                RScript.ReturnType.MULTI,
+                keys,
+                String.valueOf(startIdx), String.valueOf(endIdx)
+        );
+        return result.stream().map(Long.valueOf(1L)::equals).toList();
     }
 
     private String buildKey(Long scheduleId, Long seatId) {

@@ -44,13 +44,13 @@ public class QueueService {
      * @return 등록된 rank (1-based), 이미 active이면 -1
      */
     public EnterResult enter(Long userId, String scope, String idempotencyKey) {
-        // 이미 active 상태이면 즉시 토큰 반환
+        // 이미 active(버킷 보유)면 새 토큰으로 재발급해 즉시 입장시킨다.
+        // 기존 토큰을 그대로 재반환하면 직전 예약에서 소비된 토큰이 버킷 TTL(600s) 동안
+        // 되살아나 예약 생성이 401(already used)로 거부된다(2026-06-11 부하 테스트에서 발견).
+        // 슬롯은 이미 점유 중이므로 재발급은 새치기가 아니다.
         String activeKey = ACTIVE_KEY_PREFIX + scope + ":" + userId;
-        String existingToken = (String) redissonClient.getBucket(activeKey).get();
-        if (existingToken != null) {
-            long ttlMs = redissonClient.getBucket(activeKey).remainTimeToLive();
-            long expiresAt = System.currentTimeMillis() + (ttlMs > 0 ? ttlMs : 0);
-            return EnterResult.active(existingToken, expiresAt);
+        if (redissonClient.getBucket(activeKey).isExists()) {
+            return admit(userId, scope);
         }
 
         // 입장 제어(C): FORCE_OFF면 즉시 입장, AUTO면 대기자 없고 active 여유 있을 때만 즉시 입장.

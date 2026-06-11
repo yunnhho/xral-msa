@@ -2,65 +2,50 @@
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
     <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="XRail 1000 동접 부하 테스트" enabled="true">
-      <stringProp name="TestPlan.comments">시나리오: signup → queue → reserve → pay (1,000 users)</stringProp>
+      <stringProp name="TestPlan.comments">signup → login → search → queue → seats → reserve → pay (-JUSERS=1000 -JRAMPUP=60)</stringProp>
       <boolProp name="TestPlan.functional_mode">false</boolProp>
       <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
       <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
       <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="User Defined Variables">
         <collectionProp name="Arguments.arguments">
-          <elementProp name="BASE_URL" elementType="Argument">
-            <stringProp name="Argument.name">BASE_URL</stringProp>
-            <stringProp name="Argument.value">localhost</stringProp>
-          </elementProp>
-          <elementProp name="BASE_PORT" elementType="Argument">
-            <stringProp name="Argument.name">BASE_PORT</stringProp>
-            <stringProp name="Argument.value">8080</stringProp>
-          </elementProp>
-          <elementProp name="SCHEDULE_ID" elementType="Argument">
-            <stringProp name="Argument.name">SCHEDULE_ID</stringProp>
-            <stringProp name="Argument.value">1</stringProp>
-          </elementProp>
           <elementProp name="DEPARTURE_STATION_ID" elementType="Argument">
             <stringProp name="Argument.name">DEPARTURE_STATION_ID</stringProp>
-            <stringProp name="Argument.value">1</stringProp>
+            <stringProp name="Argument.value">${__P(DEPARTURE_STATION_ID,1)}</stringProp>
           </elementProp>
           <elementProp name="ARRIVAL_STATION_ID" elementType="Argument">
             <stringProp name="Argument.name">ARRIVAL_STATION_ID</stringProp>
-            <stringProp name="Argument.value">6</stringProp>
+            <stringProp name="Argument.value">${__P(ARRIVAL_STATION_ID,4)}</stringProp>
           </elementProp>
         </collectionProp>
       </elementProp>
     </TestPlan>
     <hashTree>
 
-      <!-- ============================================================ -->
-      <!-- Thread Group: 1,000 users, ramp-up 60s, 1 loop              -->
-      <!-- ============================================================ -->
-      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="XRail 1000 Users" enabled="true">
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="XRail Users" enabled="true">
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlGui" testclass="LoopController">
           <boolProp name="LoopController.continue_forever">false</boolProp>
           <stringProp name="LoopController.loops">1</stringProp>
         </elementProp>
-        <stringProp name="ThreadGroup.num_threads">1000</stringProp>
-        <stringProp name="ThreadGroup.ramp_time">60</stringProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(USERS,1000)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">${__P(RAMPUP,60)}</stringProp>
         <boolProp name="ThreadGroup.scheduler">false</boolProp>
       </ThreadGroup>
       <hashTree>
 
-        <!-- HTTP Config -->
         <ConfigTestElement guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults" enabled="true">
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
             <collectionProp name="Arguments.arguments"/>
           </elementProp>
-          <stringProp name="HTTPSampler.domain">${BASE_URL}</stringProp>
-          <stringProp name="HTTPSampler.port">${BASE_PORT}</stringProp>
+          <stringProp name="HTTPSampler.domain">${__P(HOST,localhost)}</stringProp>
+          <stringProp name="HTTPSampler.port">${__P(PORT,8080)}</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
           <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+          <stringProp name="HTTPSampler.connect_timeout">5000</stringProp>
+          <stringProp name="HTTPSampler.response_timeout">30000</stringProp>
         </ConfigTestElement>
         <hashTree/>
 
-        <!-- Header Manager -->
         <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="JSON Content-Type" enabled="true">
           <collectionProp name="HeaderManager.headers">
             <elementProp name="" elementType="Header">
@@ -71,90 +56,107 @@
               <stringProp name="Header.name">Accept</stringProp>
               <stringProp name="Header.value">application/json</stringProp>
             </elementProp>
+            <elementProp name="" elementType="Header">
+              <stringProp name="Header.name">User-Agent</stringProp>
+              <stringProp name="Header.value">Mozilla/5.0 (JMeter LoadTest)</stringProp>
+            </elementProp>
           </collectionProp>
         </HeaderManager>
         <hashTree/>
 
-        <!-- Cookie Manager (refresh token cookie) -->
         <CookieManager guiclass="CookiePanel" testclass="CookieManager" testname="HTTP Cookie Manager" enabled="true">
           <collectionProp name="CookieManager.cookies"/>
           <boolProp name="CookieManager.clearEachIteration">true</boolProp>
         </CookieManager>
         <hashTree/>
 
-        <!-- ======================== STEP 1: Signup ======================== -->
-        <GenericSampler guiclass="GenericSamplerUI" testclass="GenericSampler" testname="SETUP - Generate User ID" enabled="true">
-          <stringProp name="GenericSampler.result">ok</stringProp>
-        </GenericSampler>
-        <hashTree>
-          <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Generate Unique User Data" enabled="true">
-            <stringProp name="scriptLanguage">groovy</stringProp>
-            <stringProp name="script">
-import java.util.UUID
-def uid = UUID.randomUUID().toString().replace('-','').substring(0,12)
-vars.put('UNIQUE_ID', uid)
-vars.put('LOGIN_ID', 'jmeter_' + uid)
-vars.put('EMAIL', 'jmeter_' + uid + '@xrail.test')
-vars.put('IDEM_SIGNUP', UUID.randomUUID().toString())
-vars.put('IDEM_QUEUE', UUID.randomUUID().toString())
-vars.put('IDEM_RESERVE', UUID.randomUUID().toString())
-vars.put('IDEM_PAYMENT', UUID.randomUUID().toString())
-            </stringProp>
-          </JSR223PreProcessor>
-          <hashTree/>
-        </hashTree>
+        <!-- 계정은 seed-users.py로 사전 생성 (PRD M23: 측정 시나리오는 login부터) -->
+        <CSVDataSet guiclass="TestBeanGUI" testclass="CSVDataSet" testname="users.csv" enabled="true">
+          <stringProp name="filename">users.csv</stringProp>
+          <stringProp name="fileEncoding">UTF-8</stringProp>
+          <stringProp name="variableNames">EMAIL,PASSWORD</stringProp>
+          <boolProp name="ignoreFirstLine">false</boolProp>
+          <stringProp name="delimiter">,</stringProp>
+          <boolProp name="quotedData">false</boolProp>
+          <boolProp name="recycle">true</boolProp>
+          <boolProp name="stopThread">false</boolProp>
+          <stringProp name="shareMode">shareMode.all</stringProp>
+        </CSVDataSet>
+        <hashTree/>
 
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="1. Signup" enabled="true">
+        <!-- ============ 02 Login ============ -->
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="02_Login" enabled="true">
           <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{"loginId":"${LOGIN_ID}","password":"Test1234!","name":"JMeter ${UNIQUE_ID}","email":"${EMAIL}","phone":"0100000${__Random(1000,9999)}","birthDate":"19900101"}</stringProp>
+                <stringProp name="Argument.value">{"email":"${EMAIL}","password":"${PASSWORD}"}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
           </elementProp>
-          <stringProp name="HTTPSampler.path">/api/auth/signup</stringProp>
+          <stringProp name="HTTPSampler.path">/api/auth/login</stringProp>
           <stringProp name="HTTPSampler.method">POST</stringProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <JSONPathExtractor guiclass="JSONPathExtractorGui" testclass="JSONPathExtractor" testname="Extract accessToken from Signup" enabled="true">
-            <stringProp name="JSONPathExtractor.referenceNames">ACCESS_TOKEN</stringProp>
-            <stringProp name="JSONPathExtractor.jsonPathExprs">$.data.accessToken</stringProp>
-            <stringProp name="JSONPathExtractor.defaultValues">MISSING</stringProp>
-          </JSONPathExtractor>
+          <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Init thread vars" enabled="true">
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="script">vars.put('POLLS', '0')</stringProp>
+          </JSR223PreProcessor>
           <hashTree/>
-          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert Signup 2xx" enabled="true">
+          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract accessToken" enabled="true">
+            <stringProp name="JSONPostProcessor.referenceNames">ACCESS_TOKEN</stringProp>
+            <stringProp name="JSONPostProcessor.jsonPathExprs">$.data.accessToken</stringProp>
+            <stringProp name="JSONPostProcessor.match_numbers">1</stringProp>
+            <stringProp name="JSONPostProcessor.defaultValues">MISSING</stringProp>
+          </JSONPostProcessor>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert 2xx" enabled="true">
             <collectionProp name="Asserion.test_strings">
-              <stringProp name="49586">201</stringProp>
+              <stringProp name="0">20\d</stringProp>
             </collectionProp>
-            <stringProp name="Assertion.custom_message">Signup failed</stringProp>
+            <stringProp name="Assertion.custom_message">Login failed</stringProp>
             <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
             <boolProp name="Assertion.assume_success">false</boolProp>
-            <intProp name="Assertion.test_type">2</intProp>
+            <intProp name="Assertion.test_type">1</intProp>
           </ResponseAssertion>
           <hashTree/>
         </hashTree>
 
-        <!-- ======================== STEP 2: Schedule Search ======================== -->
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="2. Schedule Search" enabled="true">
+        <!-- 로그인 실패 스레드는 이후 전 스텝 스킵 (오류 연쇄 방지) -->
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If logged in" enabled="true">
+          <stringProp name="IfController.condition">${__jexl3("${ACCESS_TOKEN}" != "MISSING")}</stringProp>
+          <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
+        </IfController>
+        <hashTree>
+
+        <!-- ============ 03 Schedule Search (조회 p50 측정 대상) ============ -->
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="03_ScheduleSearch" enabled="true">
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
             <collectionProp name="Arguments.arguments">
               <elementProp name="departureStationId" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.name">departureStationId</stringProp>
                 <stringProp name="Argument.value">${DEPARTURE_STATION_ID}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
               </elementProp>
               <elementProp name="arrivalStationId" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.name">arrivalStationId</stringProp>
                 <stringProp name="Argument.value">${ARRIVAL_STATION_ID}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
               </elementProp>
               <elementProp name="date" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
                 <stringProp name="Argument.name">date</stringProp>
-                <stringProp name="Argument.value">2026-06-01</stringProp>
+                <stringProp name="Argument.value">${SEARCH_DATE}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+                <boolProp name="HTTPArgument.use_equals">true</boolProp>
               </elementProp>
             </collectionProp>
           </elementProp>
@@ -162,6 +164,13 @@ vars.put('IDEM_PAYMENT', UUID.randomUUID().toString())
           <stringProp name="HTTPSampler.method">GET</stringProp>
         </HTTPSamplerProxy>
         <hashTree>
+          <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Random date (내일~+29일)" enabled="true">
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="script">def d = java.time.LocalDate.now().plusDays(1 + new Random().nextInt(28))
+vars.put('SEARCH_DATE', d.toString())</stringProp>
+          </JSR223PreProcessor>
+          <hashTree/>
           <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth Header" enabled="true">
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
@@ -171,16 +180,27 @@ vars.put('IDEM_PAYMENT', UUID.randomUUID().toString())
             </collectionProp>
           </HeaderManager>
           <hashTree/>
-          <JSONPathExtractor guiclass="JSONPathExtractorGui" testclass="JSONPathExtractor" testname="Extract scheduleId" enabled="true">
-            <stringProp name="JSONPathExtractor.referenceNames">SCHEDULE_ID_DYN</stringProp>
-            <stringProp name="JSONPathExtractor.jsonPathExprs">$.data.schedules[0].scheduleId</stringProp>
-            <stringProp name="JSONPathExtractor.defaultValues">${SCHEDULE_ID}</stringProp>
-          </JSONPathExtractor>
+          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract random scheduleId" enabled="true">
+            <stringProp name="JSONPostProcessor.referenceNames">SCHEDULE_ID</stringProp>
+            <stringProp name="JSONPostProcessor.jsonPathExprs">$.data.schedules[*].scheduleId</stringProp>
+            <stringProp name="JSONPostProcessor.match_numbers">0</stringProp>
+            <stringProp name="JSONPostProcessor.defaultValues">NONE</stringProp>
+          </JSONPostProcessor>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert 2xx" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="0">20\d</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message">Schedule search failed</stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">1</intProp>
+          </ResponseAssertion>
           <hashTree/>
         </hashTree>
 
-        <!-- ======================== STEP 3: Queue Token ======================== -->
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="3. Queue Token (Enter Queue)" enabled="true">
+        <!-- ============ 04 Queue Enter ============ -->
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="04_QueueEnter" enabled="true">
           <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
           <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
             <collectionProp name="Arguments.arguments">
@@ -195,7 +215,15 @@ vars.put('IDEM_PAYMENT', UUID.randomUUID().toString())
           <stringProp name="HTTPSampler.method">POST</stringProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth + Captcha + Idempotency" enabled="true">
+          <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Gen captcha (queue)" enabled="true">
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="script">int pad = ctx.getThreadNum() * 2 + 2
+String raw = ('0' * pad) + System.currentTimeMillis()
+vars.put('CAPTCHA_Q', raw.bytes.encodeBase64().toString())</stringProp>
+          </JSR223PreProcessor>
+          <hashTree/>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth + Captcha + Idem" enabled="true">
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
@@ -203,26 +231,43 @@ vars.put('IDEM_PAYMENT', UUID.randomUUID().toString())
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">X-Captcha-Token</stringProp>
-                <stringProp name="Header.value">c_stub:0000</stringProp>
+                <stringProp name="Header.value">${CAPTCHA_Q}</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Idempotency-Key</stringProp>
-                <stringProp name="Header.value">${IDEM_QUEUE}</stringProp>
+                <stringProp name="Header.value">${__UUID()}</stringProp>
               </elementProp>
             </collectionProp>
           </HeaderManager>
           <hashTree/>
-          <JSONPathExtractor guiclass="JSONPathExtractorGui" testclass="JSONPathExtractor" testname="Extract Queue Token if ACTIVE" enabled="true">
-            <stringProp name="JSONPathExtractor.referenceNames">QUEUE_TOKEN</stringProp>
-            <stringProp name="JSONPathExtractor.jsonPathExprs">$.data.queueToken</stringProp>
-            <stringProp name="JSONPathExtractor.defaultValues">WAITING</stringProp>
-          </JSONPathExtractor>
+          <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract status+token" enabled="true">
+            <stringProp name="JSONPostProcessor.referenceNames">QUEUE_STATUS;QUEUE_TOKEN</stringProp>
+            <stringProp name="JSONPostProcessor.jsonPathExprs">$.data.status;$.data.queueToken</stringProp>
+            <stringProp name="JSONPostProcessor.match_numbers">1;1</stringProp>
+            <stringProp name="JSONPostProcessor.defaultValues">WAITING;NONE</stringProp>
+          </JSONPostProcessor>
+          <hashTree/>
+          <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert 2xx" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="0">20\d</stringProp>
+            </collectionProp>
+            <stringProp name="Assertion.custom_message">Queue enter failed</stringProp>
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+            <boolProp name="Assertion.assume_success">false</boolProp>
+            <intProp name="Assertion.test_type">1</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+          <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Mark FAILED on error" enabled="true">
+            <stringProp name="scriptLanguage">groovy</stringProp>
+            <stringProp name="cacheKey">true</stringProp>
+            <stringProp name="script">if (!prev.getResponseCode().startsWith('2')) vars.put('QUEUE_STATUS', 'FAILED')</stringProp>
+          </JSR223PostProcessor>
           <hashTree/>
         </hashTree>
 
-        <!-- Poll queue until ACTIVE (max 60s) -->
+        <!-- ============ 04b Poll until ACTIVE (최대 60회 × 3s) ============ -->
         <WhileController guiclass="WhileControllerGui" testclass="WhileController" testname="Poll Until Active" enabled="true">
-          <stringProp name="WhileController.condition">${__jexl3("${QUEUE_TOKEN}" == "WAITING")}</stringProp>
+          <stringProp name="WhileController.condition">${__groovy(vars.get('QUEUE_STATUS') == 'WAITING' &amp;&amp; Integer.parseInt(vars.get('POLLS') ?: '0') &lt; 60)}</stringProp>
         </WhileController>
         <hashTree>
           <TestAction guiclass="TestActionGui" testclass="TestAction" testname="Wait 3s" enabled="true">
@@ -231,13 +276,15 @@ vars.put('IDEM_PAYMENT', UUID.randomUUID().toString())
             <stringProp name="ActionProcessor.duration">3000</stringProp>
           </TestAction>
           <hashTree/>
-          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="3b. Queue Status Poll" enabled="true">
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="04b_QueuePoll" enabled="true">
             <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
               <collectionProp name="Arguments.arguments">
                 <elementProp name="scope" elementType="HTTPArgument">
                   <boolProp name="HTTPArgument.always_encode">false</boolProp>
                   <stringProp name="Argument.name">scope</stringProp>
                   <stringProp name="Argument.value">global</stringProp>
+                  <stringProp name="Argument.metadata">=</stringProp>
+                  <boolProp name="HTTPArgument.use_equals">true</boolProp>
                 </elementProp>
               </collectionProp>
             </elementProp>
@@ -245,7 +292,7 @@ vars.put('IDEM_PAYMENT', UUID.randomUUID().toString())
             <stringProp name="HTTPSampler.method">GET</stringProp>
           </HTTPSamplerProxy>
           <hashTree>
-            <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth Header Poll" enabled="true">
+            <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth Header" enabled="true">
               <collectionProp name="HeaderManager.headers">
                 <elementProp name="" elementType="Header">
                   <stringProp name="Header.name">Authorization</stringProp>
@@ -254,75 +301,54 @@ vars.put('IDEM_PAYMENT', UUID.randomUUID().toString())
               </collectionProp>
             </HeaderManager>
             <hashTree/>
-            <JSONPathExtractor guiclass="JSONPathExtractorGui" testclass="JSONPathExtractor" testname="Extract queueToken from poll" enabled="true">
-              <stringProp name="JSONPathExtractor.referenceNames">QUEUE_TOKEN</stringProp>
-              <stringProp name="JSONPathExtractor.jsonPathExprs">$.data.queueToken</stringProp>
-              <stringProp name="JSONPathExtractor.defaultValues">WAITING</stringProp>
-            </JSONPathExtractor>
+            <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract status+token" enabled="true">
+              <stringProp name="JSONPostProcessor.referenceNames">QUEUE_STATUS;QUEUE_TOKEN</stringProp>
+              <stringProp name="JSONPostProcessor.jsonPathExprs">$.data.status;$.data.queueToken</stringProp>
+              <stringProp name="JSONPostProcessor.match_numbers">1;1</stringProp>
+              <stringProp name="JSONPostProcessor.defaultValues">WAITING;NONE</stringProp>
+            </JSONPostProcessor>
+            <hashTree/>
+            <JSR223PostProcessor guiclass="TestBeanGUI" testclass="JSR223PostProcessor" testname="Increment polls" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">vars.put('POLLS', String.valueOf(Integer.parseInt(vars.get('POLLS') ?: '0') + 1))
+if (!prev.getResponseCode().startsWith('2')) vars.put('QUEUE_STATUS', 'FAILED')</stringProp>
+            </JSR223PostProcessor>
             <hashTree/>
           </hashTree>
         </hashTree>
 
-        <!-- ======================== STEP 4: Seat Availability ======================== -->
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="4. Seat Availability" enabled="true">
-          <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
-            <collectionProp name="Arguments.arguments">
-              <elementProp name="departureStationId" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.name">departureStationId</stringProp>
-                <stringProp name="Argument.value">${DEPARTURE_STATION_ID}</stringProp>
-              </elementProp>
-              <elementProp name="arrivalStationId" elementType="HTTPArgument">
-                <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.name">arrivalStationId</stringProp>
-                <stringProp name="Argument.value">${ARRIVAL_STATION_ID}</stringProp>
-              </elementProp>
-            </collectionProp>
-          </elementProp>
-          <stringProp name="HTTPSampler.path">/api/schedules/${SCHEDULE_ID_DYN}/seats</stringProp>
-          <stringProp name="HTTPSampler.method">GET</stringProp>
-        </HTTPSamplerProxy>
-        <hashTree>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth Header Seats" enabled="true">
-            <collectionProp name="HeaderManager.headers">
-              <elementProp name="" elementType="Header">
-                <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">Bearer ${ACCESS_TOKEN}</stringProp>
-              </elementProp>
-            </collectionProp>
-          </HeaderManager>
-          <hashTree/>
-          <JSONPathExtractor guiclass="JSONPathExtractorGui" testclass="JSONPathExtractor" testname="Extract First Available SeatId" enabled="true">
-            <stringProp name="JSONPathExtractor.referenceNames">SEAT_ID</stringProp>
-            <stringProp name="JSONPathExtractor.jsonPathExprs">$.data.carriages[0].seats[?(@.available==true)].seatId</stringProp>
-            <stringProp name="JSONPathExtractor.defaultValues">NONE</stringProp>
-            <stringProp name="JSONPathExtractor.match_no">1</stringProp>
-          </JSONPathExtractor>
-          <hashTree/>
-        </hashTree>
-
-        <!-- ======================== STEP 5: Reserve ======================== -->
-        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Reserve only if seat found" enabled="true">
-          <stringProp name="IfController.condition">"${SEAT_ID}" != "NONE"</stringProp>
+        <!-- ============ 05 Seats (큐 토큰 검증 — 미소비) ============ -->
+        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If ACTIVE" enabled="true">
+          <stringProp name="IfController.condition">${__jexl3("${QUEUE_STATUS}" == "ACTIVE" &amp;&amp; "${SCHEDULE_ID}" != "NONE")}</stringProp>
           <boolProp name="IfController.evaluateAll">false</boolProp>
+          <boolProp name="IfController.useExpression">true</boolProp>
         </IfController>
         <hashTree>
-          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="5. Reserve" enabled="true">
-            <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
-            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="05_Seats" enabled="true">
+            <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
               <collectionProp name="Arguments.arguments">
-                <elementProp name="" elementType="HTTPArgument">
+                <elementProp name="departureStationId" elementType="HTTPArgument">
                   <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                  <stringProp name="Argument.value">{"scheduleId":${SCHEDULE_ID_DYN},"departureStationId":${DEPARTURE_STATION_ID},"arrivalStationId":${ARRIVAL_STATION_ID},"seatIds":[${SEAT_ID}]}</stringProp>
+                  <stringProp name="Argument.name">departureStationId</stringProp>
+                  <stringProp name="Argument.value">${DEPARTURE_STATION_ID}</stringProp>
                   <stringProp name="Argument.metadata">=</stringProp>
+                  <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                </elementProp>
+                <elementProp name="arrivalStationId" elementType="HTTPArgument">
+                  <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                  <stringProp name="Argument.name">arrivalStationId</stringProp>
+                  <stringProp name="Argument.value">${ARRIVAL_STATION_ID}</stringProp>
+                  <stringProp name="Argument.metadata">=</stringProp>
+                  <boolProp name="HTTPArgument.use_equals">true</boolProp>
                 </elementProp>
               </collectionProp>
             </elementProp>
-            <stringProp name="HTTPSampler.path">/api/reservations</stringProp>
-            <stringProp name="HTTPSampler.method">POST</stringProp>
+            <stringProp name="HTTPSampler.path">/api/schedules/${SCHEDULE_ID}/seats</stringProp>
+            <stringProp name="HTTPSampler.method">GET</stringProp>
           </HTTPSamplerProxy>
           <hashTree>
-            <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth + Queue Token + Idempotency" enabled="true">
+            <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth + QueueToken" enabled="true">
               <collectionProp name="HeaderManager.headers">
                 <elementProp name="" elementType="Header">
                   <stringProp name="Header.name">Authorization</stringProp>
@@ -332,146 +358,164 @@ vars.put('IDEM_PAYMENT', UUID.randomUUID().toString())
                   <stringProp name="Header.name">X-Queue-Token</stringProp>
                   <stringProp name="Header.value">${QUEUE_TOKEN}</stringProp>
                 </elementProp>
-                <elementProp name="" elementType="Header">
-                  <stringProp name="Header.name">Idempotency-Key</stringProp>
-                  <stringProp name="Header.value">${IDEM_RESERVE}</stringProp>
-                </elementProp>
               </collectionProp>
             </HeaderManager>
             <hashTree/>
-            <JSONPathExtractor guiclass="JSONPathExtractorGui" testclass="JSONPathExtractor" testname="Extract reservationId" enabled="true">
-              <stringProp name="JSONPathExtractor.referenceNames">RESERVATION_ID</stringProp>
-              <stringProp name="JSONPathExtractor.jsonPathExprs">$.data.reservationId</stringProp>
-              <stringProp name="JSONPathExtractor.defaultValues">NONE</stringProp>
-            </JSONPathExtractor>
+            <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract random available seat" enabled="true">
+              <stringProp name="JSONPostProcessor.referenceNames">SEAT_ID</stringProp>
+              <stringProp name="JSONPostProcessor.jsonPathExprs">$.data.carriages[*].seats[?(@.available==true)].seatId</stringProp>
+              <stringProp name="JSONPostProcessor.match_numbers">0</stringProp>
+              <stringProp name="JSONPostProcessor.defaultValues">NONE</stringProp>
+            </JSONPostProcessor>
             <hashTree/>
-            <JSONPathExtractor guiclass="JSONPathExtractorGui" testclass="JSONPathExtractor" testname="Extract totalPrice" enabled="true">
-              <stringProp name="JSONPathExtractor.referenceNames">TOTAL_PRICE</stringProp>
-              <stringProp name="JSONPathExtractor.jsonPathExprs">$.data.totalPrice</stringProp>
-              <stringProp name="JSONPathExtractor.defaultValues">0</stringProp>
-            </JSONPathExtractor>
-            <hashTree/>
-          </hashTree>
-        </hashTree>
-
-        <!-- ======================== STEP 6: Pay ======================== -->
-        <IfController guiclass="IfControllerPanel" testclass="IfController" testname="Pay only if reserved" enabled="true">
-          <stringProp name="IfController.condition">"${RESERVATION_ID}" != "NONE"</stringProp>
-          <boolProp name="IfController.evaluateAll">false</boolProp>
-        </IfController>
-        <hashTree>
-          <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="6. Pay" enabled="true">
-            <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
-            <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
-              <collectionProp name="Arguments.arguments">
-                <elementProp name="" elementType="HTTPArgument">
-                  <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                  <stringProp name="Argument.value">{"reservationId":${RESERVATION_ID},"amount":${TOTAL_PRICE},"method":"CARD"}</stringProp>
-                  <stringProp name="Argument.metadata">=</stringProp>
-                </elementProp>
-              </collectionProp>
-            </elementProp>
-            <stringProp name="HTTPSampler.path">/api/payments</stringProp>
-            <stringProp name="HTTPSampler.method">POST</stringProp>
-          </HTTPSamplerProxy>
-          <hashTree>
-            <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth + Idempotency Payment" enabled="true">
-              <collectionProp name="HeaderManager.headers">
-                <elementProp name="" elementType="Header">
-                  <stringProp name="Header.name">Authorization</stringProp>
-                  <stringProp name="Header.value">Bearer ${ACCESS_TOKEN}</stringProp>
-                </elementProp>
-                <elementProp name="" elementType="Header">
-                  <stringProp name="Header.name">Idempotency-Key</stringProp>
-                  <stringProp name="Header.value">${IDEM_PAYMENT}</stringProp>
-                </elementProp>
-              </collectionProp>
-            </HeaderManager>
-            <hashTree/>
-            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert Payment Success" enabled="true">
+            <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert 2xx" enabled="true">
               <collectionProp name="Asserion.test_strings">
-                <stringProp name="49586">200</stringProp>
+                <stringProp name="0">20\d</stringProp>
               </collectionProp>
+              <stringProp name="Assertion.custom_message">Seats lookup failed</stringProp>
               <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
               <boolProp name="Assertion.assume_success">false</boolProp>
-              <intProp name="Assertion.test_type">2</intProp>
+              <intProp name="Assertion.test_type">1</intProp>
             </ResponseAssertion>
             <hashTree/>
           </hashTree>
+
+          <!-- ============ 06 Reserve ============ -->
+          <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If seat found" enabled="true">
+            <stringProp name="IfController.condition">${__jexl3("${SEAT_ID}" != "NONE")}</stringProp>
+            <boolProp name="IfController.evaluateAll">false</boolProp>
+            <boolProp name="IfController.useExpression">true</boolProp>
+          </IfController>
+          <hashTree>
+            <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="06_Reserve" enabled="true">
+              <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+              <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                <collectionProp name="Arguments.arguments">
+                  <elementProp name="" elementType="HTTPArgument">
+                    <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                    <stringProp name="Argument.value">{"scheduleId":${SCHEDULE_ID},"departureStationId":${DEPARTURE_STATION_ID},"arrivalStationId":${ARRIVAL_STATION_ID},"seatIds":[${SEAT_ID}]}</stringProp>
+                    <stringProp name="Argument.metadata">=</stringProp>
+                  </elementProp>
+                </collectionProp>
+              </elementProp>
+              <stringProp name="HTTPSampler.path">/api/reservations</stringProp>
+              <stringProp name="HTTPSampler.method">POST</stringProp>
+            </HTTPSamplerProxy>
+            <hashTree>
+              <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth + QueueToken + Idem" enabled="true">
+                <collectionProp name="HeaderManager.headers">
+                  <elementProp name="" elementType="Header">
+                    <stringProp name="Header.name">Authorization</stringProp>
+                    <stringProp name="Header.value">Bearer ${ACCESS_TOKEN}</stringProp>
+                  </elementProp>
+                  <elementProp name="" elementType="Header">
+                    <stringProp name="Header.name">X-Queue-Token</stringProp>
+                    <stringProp name="Header.value">${QUEUE_TOKEN}</stringProp>
+                  </elementProp>
+                  <elementProp name="" elementType="Header">
+                    <stringProp name="Header.name">Idempotency-Key</stringProp>
+                    <stringProp name="Header.value">${__UUID()}</stringProp>
+                  </elementProp>
+                </collectionProp>
+              </HeaderManager>
+              <hashTree/>
+              <JSONPostProcessor guiclass="JSONPostProcessorGui" testclass="JSONPostProcessor" testname="Extract reservationId+totalPrice" enabled="true">
+                <stringProp name="JSONPostProcessor.referenceNames">RESERVATION_ID;TOTAL_PRICE</stringProp>
+                <stringProp name="JSONPostProcessor.jsonPathExprs">$.data.reservationId;$.data.totalPrice</stringProp>
+                <stringProp name="JSONPostProcessor.match_numbers">1;1</stringProp>
+                <stringProp name="JSONPostProcessor.defaultValues">NONE;0</stringProp>
+              </JSONPostProcessor>
+              <hashTree/>
+              <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert 2xx" enabled="true">
+                <collectionProp name="Asserion.test_strings">
+                  <stringProp name="0">20\d</stringProp>
+                </collectionProp>
+                <stringProp name="Assertion.custom_message">Reserve failed</stringProp>
+                <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+                <boolProp name="Assertion.assume_success">false</boolProp>
+                <intProp name="Assertion.test_type">1</intProp>
+              </ResponseAssertion>
+              <hashTree/>
+            </hashTree>
+
+            <!-- ============ 07 Pay ============ -->
+            <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If reserved" enabled="true">
+              <stringProp name="IfController.condition">${__jexl3("${RESERVATION_ID}" != "NONE")}</stringProp>
+              <boolProp name="IfController.evaluateAll">false</boolProp>
+              <boolProp name="IfController.useExpression">true</boolProp>
+            </IfController>
+            <hashTree>
+              <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="07_Pay" enabled="true">
+                <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+                <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+                  <collectionProp name="Arguments.arguments">
+                    <elementProp name="" elementType="HTTPArgument">
+                      <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                      <stringProp name="Argument.value">{"reservationId":${RESERVATION_ID},"amount":${TOTAL_PRICE},"method":"CARD"}</stringProp>
+                      <stringProp name="Argument.metadata">=</stringProp>
+                    </elementProp>
+                  </collectionProp>
+                </elementProp>
+                <stringProp name="HTTPSampler.path">/api/payments</stringProp>
+                <stringProp name="HTTPSampler.method">POST</stringProp>
+              </HTTPSamplerProxy>
+              <hashTree>
+                <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth + Idem" enabled="true">
+                  <collectionProp name="HeaderManager.headers">
+                    <elementProp name="" elementType="Header">
+                      <stringProp name="Header.name">Authorization</stringProp>
+                      <stringProp name="Header.value">Bearer ${ACCESS_TOKEN}</stringProp>
+                    </elementProp>
+                    <elementProp name="" elementType="Header">
+                      <stringProp name="Header.name">Idempotency-Key</stringProp>
+                      <stringProp name="Header.value">${__UUID()}</stringProp>
+                    </elementProp>
+                  </collectionProp>
+                </HeaderManager>
+                <hashTree/>
+                <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert 2xx" enabled="true">
+                  <collectionProp name="Asserion.test_strings">
+                    <stringProp name="0">20\d</stringProp>
+                  </collectionProp>
+                  <stringProp name="Assertion.custom_message">Payment failed</stringProp>
+                  <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+                  <boolProp name="Assertion.assume_success">false</boolProp>
+                  <intProp name="Assertion.test_type">1</intProp>
+                </ResponseAssertion>
+                <hashTree/>
+              </hashTree>
+
+              <!-- ============ 08 Queue Leave (active 슬롯 즉시 반납) ============ -->
+              <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="08_QueueLeave" enabled="true">
+                <elementProp name="HTTPsampler.Arguments" elementType="Arguments" guiclass="HTTPArgumentsPanel" testclass="Arguments">
+                  <collectionProp name="Arguments.arguments">
+                    <elementProp name="scope" elementType="HTTPArgument">
+                      <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                      <stringProp name="Argument.name">scope</stringProp>
+                      <stringProp name="Argument.value">global</stringProp>
+                      <stringProp name="Argument.metadata">=</stringProp>
+                      <boolProp name="HTTPArgument.use_equals">true</boolProp>
+                    </elementProp>
+                  </collectionProp>
+                </elementProp>
+                <stringProp name="HTTPSampler.path">/api/queue/leave</stringProp>
+                <stringProp name="HTTPSampler.method">POST</stringProp>
+              </HTTPSamplerProxy>
+              <hashTree>
+                <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="Auth Header" enabled="true">
+                  <collectionProp name="HeaderManager.headers">
+                    <elementProp name="" elementType="Header">
+                      <stringProp name="Header.name">Authorization</stringProp>
+                      <stringProp name="Header.value">Bearer ${ACCESS_TOKEN}</stringProp>
+                    </elementProp>
+                  </collectionProp>
+                </HeaderManager>
+                <hashTree/>
+              </hashTree>
+            </hashTree>
+          </hashTree>
         </hashTree>
-
-        <!-- ============================================================ -->
-        <!-- Listeners                                                     -->
-        <!-- ============================================================ -->
-        <ResultCollector guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report" enabled="true">
-          <boolProp name="ResultCollector.error_logging">false</boolProp>
-          <objProp>
-            <name>saveConfig</name>
-            <value class="SampleSaveConfiguration">
-              <time>true</time>
-              <latency>true</latency>
-              <timestamp>true</timestamp>
-              <success>true</success>
-              <label>true</label>
-              <code>true</code>
-              <message>true</message>
-              <threadName>true</threadName>
-              <dataType>true</dataType>
-              <encoding>false</encoding>
-              <assertions>true</assertions>
-              <subresults>true</subresults>
-              <responseData>false</responseData>
-              <samplerData>false</samplerData>
-              <xml>false</xml>
-              <fieldNames>true</fieldNames>
-              <responseHeaders>false</responseHeaders>
-              <requestHeaders>false</requestHeaders>
-              <responseDataOnError>false</responseDataOnError>
-              <saveAssertionResultsFailureMessage>true</saveAssertionResultsFailureMessage>
-              <assertionsResultsToSave>0</assertionsResultsToSave>
-              <bytes>true</bytes>
-              <sentBytes>true</sentBytes>
-              <url>true</url>
-              <threadCounts>true</threadCounts>
-              <idleTime>true</idleTime>
-              <connectTime>true</connectTime>
-            </value>
-          </objProp>
-          <stringProp name="filename">results/xrail-results.csv</stringProp>
-        </ResultCollector>
-        <hashTree/>
-
-        <ResultCollector guiclass="StatVisualizer" testclass="ResultCollector" testname="Aggregate Report" enabled="true">
-          <boolProp name="ResultCollector.error_logging">false</boolProp>
-          <objProp>
-            <name>saveConfig</name>
-            <value class="SampleSaveConfiguration">
-              <time>true</time>
-              <latency>true</latency>
-              <timestamp>true</timestamp>
-              <success>true</success>
-              <label>true</label>
-              <code>true</code>
-              <message>true</message>
-            </value>
-          </objProp>
-          <stringProp name="filename"></stringProp>
-        </ResultCollector>
-        <hashTree/>
-
-        <ResultCollector guiclass="RespTimeGraphVisualizer" testclass="ResultCollector" testname="Response Time Graph" enabled="true">
-          <boolProp name="ResultCollector.error_logging">false</boolProp>
-          <objProp>
-            <name>saveConfig</name>
-            <value class="SampleSaveConfiguration">
-              <time>true</time>
-              <latency>true</latency>
-              <timestamp>true</timestamp>
-            </value>
-          </objProp>
-          <stringProp name="filename"></stringProp>
-        </ResultCollector>
-        <hashTree/>
+        </hashTree>
 
       </hashTree>
     </hashTree>

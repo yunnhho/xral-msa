@@ -1,6 +1,7 @@
 package com.xrail.gateway.filter;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -37,6 +38,10 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     // Redis 장애 시 fallback. 키 = ip:minuteWindow, 값 = 해당 분의 요청 수.
     private final Map<String, AtomicLong> localCounts = new ConcurrentHashMap<>();
 
+    // 부하 테스트(단일 IP에서 수천 요청) 시 false로 비활성화. 운영 기본값 true.
+    @Value("${rate-limit.enabled:true}")
+    private boolean enabled = true;
+
     private final ReactiveStringRedisTemplate redisTemplate;
 
     public RateLimitFilter(ReactiveStringRedisTemplate redisTemplate) {
@@ -65,6 +70,9 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        if (!enabled) {
+            return chain.filter(exchange);
+        }
         String ip = resolveIp(exchange);
         String path = exchange.getRequest().getPath().value();
         String bucket = resolveBucket(path);

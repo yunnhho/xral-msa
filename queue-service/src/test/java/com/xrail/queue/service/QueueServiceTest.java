@@ -127,14 +127,15 @@ class QueueServiceTest {
     }
 
     @Test
-    void alreadyActive_returnsExistingToken() {
-        when(activeUserBucket.get()).thenReturn("existing.tok");
-        when(activeUserBucket.remainTimeToLive()).thenReturn(60_000L);
+    void alreadyActive_reissuesFreshToken() {
+        // 기존 토큰 재반환 금지 — 소비된 토큰이 재반환되면 예약이 401(already used)로 거부된다
+        when(activeUserBucket.isExists()).thenReturn(true);
 
         QueueService.EnterResult result = service.enter(USER_ID, SCOPE, null);
 
         assertThat(result.status()).isEqualTo("ACTIVE");
-        assertThat(result.queueToken()).isEqualTo("existing.tok");
+        assertThat(result.queueToken()).isEqualTo("hmac.123");
+        verify(activeUserBucket).set(eq("hmac.123"), any());
         verify(modeBucket, never()).get();
     }
 

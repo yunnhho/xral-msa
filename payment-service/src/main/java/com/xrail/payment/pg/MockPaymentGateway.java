@@ -13,10 +13,14 @@ public class MockPaymentGateway implements PaymentGateway {
     @Value("${payment.mock.always-fail:false}")
     private boolean alwaysFail;
 
+    // 랜덤 실패율 (기본 10%). 부하 테스트 등 결정적 동작이 필요하면 0으로 설정.
+    @Value("${payment.mock.failure-rate:0.1}")
+    private double failureRate;
+
     @Override
     public PgResult charge(Long paymentId, Long amount, String method) {
         // P3: always-fail 토글로 실패 시나리오 강제
-        boolean success = !alwaysFail && Math.random() >= 0.1; // 90% 성공
+        boolean success = !alwaysFail && Math.random() >= failureRate;
         if (success) {
             String txnId = "MOCK-" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
             log.info("MockPG success paymentId={} txnId={}", paymentId, txnId);

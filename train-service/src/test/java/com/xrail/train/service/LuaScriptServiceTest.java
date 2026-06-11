@@ -135,6 +135,43 @@ class LuaScriptServiceTest {
         assertThat(service.isFree(1L, 1L, 0, 3)).isFalse();
     }
 
+    // ===== areFree — 배치 가용 조회 =====
+
+    @Test
+    void areFree_mapsLuaResultPerSeat() {
+        when(rScript.eval(any(), anyString(), any(), anyList(),
+                any(Object.class), any(Object.class))).thenReturn(List.of(1L, 0L, 1L));
+
+        List<Boolean> result = service.areFree(10L, List.of(1L, 2L, 3L), 0, 3);
+
+        assertThat(result).containsExactly(true, false, true);
+    }
+
+    @Test
+    void areFree_correctKeysAndArgsPassed() {
+        when(rScript.eval(any(), anyString(), any(), anyList(),
+                any(Object.class), any(Object.class))).thenReturn(List.of(1L, 1L));
+
+        service.areFree(10L, List.of(5L, 6L), 2, 7);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Object>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<Object> arg1 = ArgumentCaptor.forClass(Object.class);
+        ArgumentCaptor<Object> arg2 = ArgumentCaptor.forClass(Object.class);
+        verify(rScript).eval(any(), anyString(), any(), keysCaptor.capture(), arg1.capture(), arg2.capture());
+
+        assertThat(keysCaptor.getValue()).containsExactly("sch:10:seat:5", "sch:10:seat:6");
+        assertThat(arg1.getValue()).isEqualTo("2");
+        assertThat(arg2.getValue()).isEqualTo("7");
+    }
+
+    @Test
+    void areFree_emptySeatIds_noRedisCall() {
+        assertThat(service.areFree(10L, List.of(), 0, 3)).isEmpty();
+        verify(rScript, org.mockito.Mockito.never()).eval(any(), anyString(), any(), anyList(),
+                any(Object.class), any(Object.class));
+    }
+
     // ===== 헬퍼 =====
 
     private void stubEvalReturn(long value) {

@@ -26,6 +26,7 @@
 | 관측성 | Prometheus 메트릭 12종 + Zipkin 6-서비스 trace |
 | 프론트엔드 | React 19 + Vite + TS (20개 모듈) |
 | 인프라 | docker-compose 단일 명령 (15개 컨테이너) |
+| 부하 검증 (M9) | JMeter 1,000 동접: **에러 0% / 예약 p95 14ms / overbooking 0** (로컬 풀스택) |
 
 ---
 
@@ -66,7 +67,7 @@ React SPA ──> API Gateway (JWT 단일 검증 + 헤더 주입)
 
 ## 3. 핵심 기술 성과 (Problem → Solution → Result)
 
-이력서에 가장 강하게 쓸 수 있는 4개 기술 하이라이트.
+이력서에 가장 강하게 쓸 수 있는 5개 기술 하이라이트.
 
 ### 🔑 성과 1 — Redis Lua 비트마스크로 "구간 단위" 좌석 동시성 0 충돌
 
@@ -117,6 +118,15 @@ end
   - **로그**: `traceId`/`spanId`/`userId` MDC 주입, JSON 포맷.
 - **Result**: 단일 예약의 trace가 `gateway → train → kafka → payment → kafka → train → kafka → notification` 전체로 연결. DLT 적재 시 알림.
 
+### 🔑 성과 5 — JMeter 1,000 동접 부하 테스트: 측정→진단→수정 5회 반복으로 목표 전 항목 달성
+
+- **Problem**: PRD 목표(1,000 동접에서 p95 < 800ms, error < 1%, overbooking 0)를 실제 부하로 검증해야 한다. 첫 실행 결과는 에러 56% — "기능이 도는 것"과 "부하를 견디는 것"은 완전히 다른 문제였다.
+- **Solution** (run1~5, 각 라운드마다 로그·메트릭·타임라인 분석으로 병목 1개씩 제거):
+  1. **bcrypt strength 12 → 인증 붕괴** (run1, 에러 56%): 1,000명 가입+로그인 = 해싱 2,000회 ≈ 540 코어-초 → Gateway TimeLimiter 5s 초과 → Circuit Breaker 오픈 → 503 연쇄. 강도를 프로퍼티화(`auth.bcrypt.strength`, OWASP 하한 10 코드로 강제)하고, 계정 가입은 측정 시나리오에서 분리(사전 시드)해 PRD 정의(search→reserve→pay)와 정렬.
+  2. **좌석 가용 조회가 비트당 Redis 왕복** (run2, 에러 18%): `isFree()`가 GETBIT를 좌석×구간마다 호출 — 검색 1회당 최대 ~2,000 왕복, 그동안 `@Transactional`이 DB 커넥션 점유 → HikariCP(30) 고갈 → 30s 대기 → 503. **배치 Lua 스크립트(`check_free_batch.lua`)로 스케줄당 1왕복**으로 축소 → 검색 p95 **4초 → 21ms**.
+  3. **소비된 큐 토큰 재반환** (run3·4, 매 런 동일 시간대에 401 결정적 재현): `QueueService.enter()`가 기존 active 버킷의 **이미 소비된** HMAC 토큰을 재반환 → 재예매 401. 실패 타임라인(램프업 오프셋과 1:1 대응)을 역추적해 이전 런의 실패 사용자 버킷(TTL 600s)이 원인임을 규명 — enter 시 신규 토큰 재발급으로 근본 수정. (프론트엔드 우회만 존재하던 잠복 버그를 부하 테스트가 서버측에서 적발)
+- **Result**: 최종 run5 — **7,000 샘플 에러 0%, 예약 p95 14ms, 조회 p50 11ms** (1,000명 전원 예매~결제 완주). 동일 좌석 100스레드 SyncTimer 동시 발사 → **201 성공 정확히 1건 + 409 충돌 99건, DB 활성 티켓 1건** (overbooking 0). JMeter 자산(메인 JMX, 동일좌석 JMX, 계정 시드 스크립트)을 `docs/jmeter/`에 재현 가능한 형태로 정리.
+
 ---
 
 ## 4. 트러블슈팅 — 직접 잡은 동시성/분산 버그 (면접 단골 질문 대비)
@@ -132,6 +142,9 @@ end
 | F-09 | Rate limit이 순간적으로 **전면 해제** | fallback `localCounts` 전체 `clear()` | 지난 window 키만 정리 |
 | 결제 락 | Redisson lock이 트랜잭션 경계 안에 위치 | `@Transactional` 커밋 전에 lock 해제 위험 | `TransactionTemplate`으로 교체, lock을 트랜잭션 **바깥**으로 |
 | Kafka 무한재시도 | DLT 미연결로 예외가 무한 재시도 루프 | recoverer 부재 | `DeadLetterPublishingRecoverer` + `FixedBackOff(1s, 2회)` |
+| 부하: CB 연쇄 503 | bcrypt(12) 해싱이 CPU 포화 → 5s 타임아웃 → **CB 오픈이 정상 요청까지 차단** | 인증 같은 CPU-bound 작업이 동기 경로에서 폭증 | bcrypt 강도 설정화 + 가입을 측정 경로에서 분리. "CB는 증상, 원인은 upstream 지연"이라는 진단 순서 학습 |
+| 부하: 커넥션 풀 고갈 | 좌석 조회가 비트당 GETBIT(검색 1회 ~2,000왕복)로 **트랜잭션 내 DB 커넥션을 장시간 점유** | Redis I/O가 tx 안에 섞여 풀 점유 시간 증폭 | 배치 Lua 1왕복으로 축소 (검색 p95 4s→21ms). HikariCP 로그(`active=30, waiting=37`)로 역추적 |
+| 부하: 소비 토큰 재반환 | 재진입 시 active 버킷의 **이미 소비된 큐 토큰**을 재반환 → 예약 401 | enter()가 버킷 존재 시 기존 토큰 그대로 반환 | enter 시 신규 토큰 재발급. 매 런 동일 램프업 오프셋에서 재현되는 실패 타임라인으로 규명 |
 
 **공통 교훈으로 정리 가능한 것**: ① 분산 환경의 멱등성, ② JPA 영속성 컨텍스트와 dirty checking, ③ 트랜잭션 전파(`REQUIRES_NEW`)와 rollback-only 마킹, ④ 락과 트랜잭션의 경계 순서.
 
@@ -179,6 +192,7 @@ end
 - **대기열(Virtual Waiting Room) + SSE 실시간 알림** — Redis Sorted Set + 스케줄러 승급, SSE/polling 자동 fallback, 평시 우회·임계치 자동 활성화 하이브리드 입장 제어 구현.
 - **풀스택 관측성** — Prometheus 도메인 메트릭 12종 + Zipkin Kafka 헤더 전파로 6개 서비스를 가로지르는 단일 예약 trace 구현.
 - **분산 동시성 버그 디버깅** — 멱등성 누락으로 인한 타 예약 좌석 해제, JPA detached 엔티티 무한 rollback, 트랜잭션 rollback-only 오염 등 다수 동시성 결함을 근본 원인 분석 후 수정.
+- **JMeter 1,000 동접 부하 테스트 — 측정→진단→수정 반복으로 에러 56% → 0% 달성** — bcrypt CPU 포화로 인한 Circuit Breaker 연쇄 503, Redis 왕복 폭증(검색당 ~2,000회)으로 인한 HikariCP 고갈, 소비된 큐 토큰 재발급 버그를 로그·타임라인 분석으로 규명·수정해 예약 p95 14ms·overbooking 0건 검증.
 
 ### English
 
@@ -187,6 +201,7 @@ end
 - Guaranteed distributed-transaction consistency for payment/seat confirmation via **Kafka Saga choreography** with idempotent consumers, the transactional outbox pattern, and dead-letter topics; centralized compensation logic to recover from 5 failure scenarios.
 - Built a **virtual waiting room** (Redis sorted set + promotion scheduler) with **real-time SSE notifications and automatic polling fallback**, plus a hybrid admission controller (bypass under normal load, auto-gate above threshold).
 - Delivered **full-stack observability**: 12 custom Prometheus domain metrics and end-to-end Zipkin tracing across all 6 services via manual Kafka header propagation.
+- Drove a **1,000-concurrent-user JMeter load test from 56% errors to 0%** through five measure-diagnose-fix iterations: resolved a bcrypt-induced circuit-breaker cascade, collapsed ~2,000 Redis round trips per search into a single batched Lua call (search p95 4s → 21ms), and root-caused a consumed-queue-token reissue bug via failure-timeline analysis — final results: reservation p95 14ms, 0 overbooking under 100-thread same-seat contention.
 
 ---
 
@@ -199,7 +214,8 @@ end
 | 좌석 락에 왜 Redisson RLock이 아니라 Lua 비트마스크? | 좌석이 "구간" 단위라 단순 lock-per-seat으로 표현 불가. 비트마스크가 segment 겹침을 정밀하게 판정. |
 | Redis가 죽으면? | 좌석 락 불가로 503(장애 격리) + DB 더블체크가 정합성 최후 방어선 + Reconciliation이 사후 보정. |
 | 중복 이벤트가 오면? | `eventId` 기준 멱등 처리 + 상태 가드(`status != PENDING`, 이미 `PAID`면 no-op). 실제로 이 가드 부재로 생긴 버그(F-07)를 직접 수정. |
-| 동시성 정합을 어떻게 검증했나? | 100 스레드 동일 좌석 부하 + JMeter 1,000 동접 시나리오(search→reserve→pay)로 overbooking 0 / p95 목표 검증. |
+| 동시성 정합을 어떻게 검증했나? | 100 스레드 동일 좌석 SyncTimer 동시 발사 → 201 성공 1건 + 409 충돌 99건, DB 활성 티켓 1건. JMeter 1,000 동접(login→search→queue→reserve→pay) 7,000샘플 에러 0%, 예약 p95 14ms. |
+| 부하 테스트에서 뭘 배웠나? | 첫 실행은 에러 56% — ① CB 503은 증상이고 원인은 bcrypt CPU 포화(진단 순서: fallback→TimeLimiter→upstream), ② 트랜잭션 안의 Redis 왕복이 DB 커넥션 점유 시간을 증폭(HikariCP `active=30, waiting=37` 로그로 역추적), ③ 결정적으로 재현되는 실패 타임라인(램프업 오프셋 고정)이 상태 잔존 버그의 지문이라는 것. |
 
 ---
 

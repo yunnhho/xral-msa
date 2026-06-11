@@ -49,6 +49,14 @@ public class SeatService {
 
         List<Seat> seats = seatRepository.findAllByTrainId(schedule.getTrain().getTrainId());
 
+        // 좌석 가용 여부는 Redis 왕복 1회로 배치 조회
+        List<Long> seatIds = seats.stream().map(Seat::getSeatId).toList();
+        List<Boolean> freeFlags = luaScriptService.areFree(scheduleId, seatIds, startIdx, endIdx);
+        Map<Long, Boolean> freeBySeatId = new LinkedHashMap<>();
+        for (int i = 0; i < seats.size(); i++) {
+            freeBySeatId.put(seats.get(i).getSeatId(), freeFlags.get(i));
+        }
+
         // Group seats by carriage preserving insertion order
         Map<Long, List<Seat>> byCarriage = new LinkedHashMap<>();
         for (Seat seat : seats) {
@@ -62,7 +70,7 @@ public class SeatService {
                             .map(s -> new SeatsResponse.SeatDto(
                                     s.getSeatId(),
                                     s.getSeatNumber(),
-                                    luaScriptService.isFree(scheduleId, s.getSeatId(), startIdx, endIdx),
+                                    freeBySeatId.get(s.getSeatId()),
                                     pricePerSeat
                             ))
                             .toList();

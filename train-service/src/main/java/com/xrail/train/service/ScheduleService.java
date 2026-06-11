@@ -53,8 +53,10 @@ public class ScheduleService {
         int endIdx = arrRS.getStationSequence();
 
         List<Seat> seats = seatRepository.findAllByTrainId(s.getTrain().getTrainId());
-        int availableSeats = (int) seats.stream()
-                .filter(seat -> luaScriptService.isFree(s.getScheduleId(), seat.getSeatId(), startIdx, endIdx))
+        List<Long> seatIds = seats.stream().map(Seat::getSeatId).toList();
+        int availableSeats = (int) luaScriptService.areFree(s.getScheduleId(), seatIds, startIdx, endIdx)
+                .stream()
+                .filter(Boolean::booleanValue)
                 .count();
 
         long estimatedPrice = BASE_PRICE_PER_SEGMENT * (endIdx - startIdx);
