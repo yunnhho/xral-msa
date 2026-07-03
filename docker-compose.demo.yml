@@ -1,0 +1,22 @@
+# docker-compose.demo.yml — 데모/부하 촬영용 오버라이드.
+# 사용: docker compose -f docker-compose.yml -f docker-compose.demo.yml up -d --build
+#   (demo-up.sh 가 자동으로 두 파일을 함께 사용한다)
+#
+# 신규 기능이 아니라 기존 프로퍼티 토글일 뿐이다 (docs/jmeter/README.md 요구사항):
+#  - rate-limit.enabled=false : 단일 IP 부하기와 IP당 리미터가 양립 불가
+#  - payment.mock.failure-rate=0 : MockPG 랜덤 10% 실패 → 0 (에러율 0% 측정)
+#  - auth.bcrypt.strength=10 : 단일 머신 1,000 로그인 CPU 한계 완화 (하한 10 강제됨)
+
+services:
+  api-gateway:
+    environment:
+      RATE_LIMIT_ENABLED: "false"
+
+  payment-service:
+    environment:
+      PAYMENT_MOCK_ALWAYS_FAIL: "false"
+      PAYMENT_MOCK_FAILURE_RATE: "0"
+
+  auth-service:
+    environment:
+      AUTH_BCRYPT_STRENGTH: "10"
