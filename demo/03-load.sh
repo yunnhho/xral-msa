@@ -34,7 +34,9 @@ ok "스모크 완료 ($RESULTS/smoke.csv)"
 if [ "${SMOKE_ONLY:-0}" = "1" ]; then ok "SMOKE_ONLY=1 → 본테스트 skip"; exit 0; fi
 
 step "본 테스트 ($USERS 동접, ramp-up ${RAMPUP}s) — HTML 리포트 생성"
+# -e(리포트 생성)는 결과 CSV가 비어 있지 않으면 즉시 실패 — 이전 실행 잔재 제거 필수
 rm -rf "$RESULTS/html-demo"
+rm -f "$RESULTS/demo-run.csv"
 HEAP="-Xms1g -Xmx2g" jmeter -n -t "$JMX" \
   -l "$RESULTS/demo-run.csv" -e -o "$RESULTS/html-demo" \
   -JUSERS="$USERS" -JRAMPUP="$RAMPUP" -JHOST=localhost -JPORT=8080

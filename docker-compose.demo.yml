@@ -6,8 +6,13 @@
 #  - rate-limit.enabled=false : 단일 IP 부하기와 IP당 리미터가 양립 불가
 #  - payment.mock.failure-rate=0 : MockPG 랜덤 10% 실패 → 0 (에러율 0% 측정)
 #  - auth.bcrypt.strength=10 : 단일 머신 1,000 로그인 CPU 한계 완화 (하한 10 강제됨)
+#  - train percentiles-histogram : Grafana "예약 p95" 패널용 히스토그램 버킷 노출
 
 services:
+  train-service:
+    environment:
+      SPRING_APPLICATION_JSON: '{"management.metrics.distribution.percentiles-histogram.http.server.requests": true}'
+
   api-gateway:
     environment:
       RATE_LIMIT_ENABLED: "false"
@@ -20,3 +25,8 @@ services:
   auth-service:
     environment:
       AUTH_BCRYPT_STRENGTH: "10"
+
+  zipkin:
+    environment:
+      # 1,000 동접 trace 볼륨에 기본 힙으로는 OOM(인메모리 저장소) — 촬영 중 죽는 것 방지
+      JAVA_OPTS: "-Xms512m -Xmx1g"

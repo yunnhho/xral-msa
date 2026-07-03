@@ -36,3 +36,4 @@ frontend/.env.local
 # JMeter generated artifacts
 docs/jmeter/results/
 docs/jmeter/users.csv
+demo/footage/

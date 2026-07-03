@@ -10,10 +10,36 @@
   "links": [],
   "panels": [
     {
+      "id": 6,
+      "title": "에러율 (5xx)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 4, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "red", "value": 0.5 }
+          ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "textMode": "value" },
+      "targets": [
+        {
+          "expr": "(sum(rate(http_server_requests_seconds_count{status=~\"5..\"}[1m])) or vector(0)) / sum(rate(http_server_requests_seconds_count[1m])) * 100",
+          "legendFormat": "에러율",
+          "refId": "A"
+        }
+      ]
+    },
+    {
       "id": 1,
       "title": "예약 생성 TPS",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 8, "w": 10, "x": 4, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
@@ -21,19 +47,86 @@
           "custom": { "lineWidth": 2 },
           "unit": "reqps"
         },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "좌석 충돌(409)/s" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"train-service\", uri=\"/api/reservations\", method=\"POST\", status=\"201\"}[1m]))",
+          "legendFormat": "예약 생성(201)/s",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{job=\"train-service\", uri=\"/api/reservations\", method=\"POST\", status=\"409\"}[1m]))",
+          "legendFormat": "좌석 충돌(409)/s",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "예약 API p95 응답시간",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "s"
+        },
         "overrides": []
       },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
         {
-          "expr": "rate(xrail_train_reservation_created_total[1m])",
-          "legendFormat": "예약 생성/s",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"train-service\", uri=\"/api/reservations\", method=\"POST\"}[1m])))",
+          "legendFormat": "예약 생성 p95",
           "refId": "A"
         },
         {
-          "expr": "rate(xrail_train_reservation_expired_total[1m])",
-          "legendFormat": "예약 만료/s",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"train-service\", uri=\"/api/schedules\"}[1m])))",
+          "legendFormat": "스케줄 검색 p95",
           "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "HikariCP 커넥션 (train)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2 } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "pending (대기)" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{job=\"train-service\"}",
+          "legendFormat": "active (사용 중)",
+          "refId": "A"
+        },
+        {
+          "expr": "hikaricp_connections{job=\"train-service\"}",
+          "legendFormat": "total (풀 크기)",
+          "refId": "B"
+        },
+        {
+          "expr": "hikaricp_connections_pending{job=\"train-service\"}",
+          "legendFormat": "pending (대기)",
+          "refId": "C"
         }
       ]
     },
@@ -41,7 +134,7 @@
       "id": 2,
       "title": "결제 성공 / 실패",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": { "unit": "reqps" },
@@ -70,7 +163,7 @@
       "id": 3,
       "title": "대기열 상태",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {},
@@ -94,7 +187,7 @@
       "id": 4,
       "title": "서킷브레이커 상태",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
@@ -118,7 +211,7 @@
       "id": 5,
       "title": "Gateway HTTP 요청 처리율 (서비스별)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": { "unit": "reqps" },
@@ -148,5 +241,5 @@
   "timezone": "Asia/Seoul",
   "title": "XRail MSA 운영 대시보드",
   "uid": "xrail-msa-ops",
-  "version": 1
+  "version": 2
 }
