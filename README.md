@@ -4,9 +4,6 @@
 
 **1,000 동시접속 환경에서 좌석 중복 예매 0건**을 목표로, 기차 예매 도메인을 **6개 비즈니스 서비스 + Gateway + Discovery**로 분리하고 이벤트 기반으로 통합한 production-grade 예매 플랫폼입니다.
 
-
-- **아키텍처 다이어그램**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-
 **머니샷 3**
 
 1. **동시성 증명** — 동일 좌석 100스레드 동시 예매 → 성공 **정확히 1건** / 409 99건 / DB 티켓 1 / **오버부킹 0**
@@ -26,12 +23,12 @@
 ## 📑 목차
 
 1. [프로젝트 개요](#1-프로젝트-개요)
-2. [기술 스택](#2-기술-스택)
-3. [시스템 아키텍처](#3-시스템-아키텍처)
-4. [데이터 플로우](#4-데이터-플로우)
-5. [핵심 기술 포인트 (좌석락·멱등성·매크로 방지)](#5-핵심-기술-포인트)
+2. [시스템 아키텍처](#2-시스템-아키텍처)
+3. [데이터 플로우](#3-데이터-플로우)
+4. [핵심 기술 포인트 (좌석락·멱등성·매크로 방지)](#4-핵심-기술-포인트)
+5. [부하 테스트](#5-부하-테스트)
 6. [Troubleshooting](#6-troubleshooting)
-7. [부하 테스트](#7-부하-테스트)
+7. [기술 스택](#7-기술-스택)
 8. [로컬 실행 방법](#8-로컬-실행-방법)
 9. [디렉터리 구조](#9-디렉터리-구조)
 10. [API 요약](#10-api-요약)
@@ -65,79 +62,15 @@
 
 ### 1.4 개발 정보
 
-- **개발자**: 김윤호 (1인 프로젝트)
+- **개발자**: 김윤호 (1인 프로젝트) · rladbsgh27@gmail.com
 - **기간**: 2026-05 ~ (M0~M9 완료)
 - **규모**: Gradle 멀티모듈 8 백엔드 + React 프론트엔드, 전 모듈 111개 테스트 통과
 
 ---
 
-## 2. 기술 스택
+## 2. 시스템 아키텍처
 
-### 2.1 Backend
-
-| 영역 | 기술 |
-|------|------|
-| 언어 / 런타임 | Java 21 |
-| 프레임워크 | Spring Boot 3.4.12, Spring Cloud 2024.0.0 |
-| API Gateway | Spring Cloud Gateway (Reactive / WebFlux / Netty) |
-| Service Discovery | Netflix Eureka |
-| ORM / 쿼리 | Spring Data JPA, Hibernate, QueryDSL 5.1 |
-| DB 마이그레이션 | Flyway |
-| 인증 / 보안 | Spring Security, JJWT 0.12, OAuth2 Client, BCrypt(12 rounds) |
-| Rate Limiting | Bucket4j 8.10 + Redis Lua |
-| 서킷 브레이커 | Resilience4j (resilience4j-reactor) |
-
-### 2.2 Data / Messaging
-
-| 영역 | 기술 |
-|------|------|
-| RDB | MySQL 8 (Database per Service — `xrail_auth` / `xrail_train` / `xrail_payment` / `xrail_notify`) |
-| Cache / Lock | Redis + Redisson 3.41 (서비스별 logical DB 0~3) |
-| Message Broker | Apache Kafka 7.5 (Confluent) + Zookeeper |
-| 동시성 제어 | Redis Lua Script (segment 비트마스크), JPA `@Version`, Redisson Lock |
-
-### 2.3 Observability
-
-| 영역 | 기술 |
-|------|------|
-| 메트릭 | Micrometer + Prometheus |
-| 대시보드 | Grafana (5 패널 프로비저닝) |
-| 분산 트레이싱 | Brave + Zipkin (HTTP 자동 + Kafka `brave-instrumentation-kafka-clients`) |
-| 로깅 | Logback JSON, MDC(`traceId`/`spanId`/`userId`) |
-
-### 2.4 Frontend
-
-| 영역 | 기술 |
-|------|------|
-| 프레임워크 | React 19 |
-| 빌드 | Vite 7 |
-| 언어 | TypeScript |
-| 라우팅 / HTTP | react-router-dom 7, Axios |
-| 실시간 | 브라우저 네이티브 EventSource (SSE) |
-
-### 2.5 Infra / Tooling
-
-| 영역 | 기술 |
-|------|------|
-| 컨테이너 | Docker, docker-compose (15 컨테이너) |
-| 빌드 | Gradle 8.10 (멀티모듈) |
-| 부하 테스트 | Apache JMeter |
-
-### 2.6 명시적 미채택 (의사결정)
-
-| 항목 | 사유 |
-|------|------|
-| WebSocket / STOMP | 단방향 알림은 SSE로 충분, polling fallback이 더 견고 |
-| Saga Orchestrator | Choreography로 서비스 의존도 ↓, `reservation_saga_log`로 디버깅 보완 |
-| Schema Registry / Avro | 1차는 JSON으로 단순화 |
-| Kubernetes | 1차는 docker-compose, K8s는 deferred |
-| SpringDoc OpenAPI | 수동 `API.md`로 충분 |
-
----
-
-## 3. 시스템 아키텍처
-
-### 3.1 서비스 토폴로지
+### 2.1 서비스 토폴로지
 
 ```mermaid
 flowchart TB
@@ -188,7 +121,7 @@ flowchart TB
     GW & AUTH & TRAIN & QUEUE & PAY & NOTI -.traces.-> ZIP
 ```
 
-### 3.2 서비스 책임
+### 2.2 서비스 책임
 
 | 서비스 | 포트 | 책임 | 저장소 |
 |--------|------|------|--------|
@@ -200,7 +133,7 @@ flowchart TB
 | **payment-service** | 8085 | Mock PG 결제, Idempotency 버킷, DLT 처리 | MySQL `xrail_payment`, Redis DB3 |
 | **notification-service** | 8086 | 도메인 이벤트 → 알림 로그 + 채널 전송 | MySQL `xrail_notify` |
 
-### 3.3 아키텍처 핵심 원칙
+### 2.3 아키텍처 핵심 원칙
 
 - **Database per Service**: 크로스 서비스 FK 금지. 타 서비스 데이터는 `userId(Long)` + 스냅샷 컬럼으로 비정규화.
 - **Gateway 단일 인증**: downstream은 Gateway가 주입한 `X-User-Id/Role/Name` 헤더만 신뢰. 자체 JWT 검증 없음. (inbound `X-User-*`는 unconditional strip → 스푸핑 방지)
@@ -209,9 +142,9 @@ flowchart TB
 
 ---
 
-## 4. 데이터 플로우
+## 3. 데이터 플로우
 
-### 4.1 좌석 예매 (동시성 핵심 — Happy Path)
+### 3.1 좌석 예매 (동시성 핵심 — Happy Path)
 
 ```mermaid
 sequenceDiagram
@@ -239,7 +172,7 @@ sequenceDiagram
     T-->>SPA: 201 {reservationId, PENDING, expiresAt(+20분)}
 ```
 
-### 4.2 결제 + 좌석 확정 (Saga Happy Path)
+### 3.2 결제 + 좌석 확정 (Saga Happy Path)
 
 ```mermaid
 sequenceDiagram
@@ -266,7 +199,7 @@ sequenceDiagram
     N->>K: publish notification.dispatched
 ```
 
-### 4.3 보상(Compensation) 매트릭스
+### 3.3 보상(Compensation) 매트릭스
 
 | 시나리오 | 트리거 | 보상 액션 | 발행 이벤트 |
 |---------|--------|----------|------------|
@@ -276,7 +209,7 @@ sequenceDiagram
 | 사용자 취소 | `DELETE /api/reservations/{id}` | Redis 해제 + CANCELLED | `seat.released(USER_CANCELLED)` |
 | Redis↔DB 정합 깨짐 | `ReconciliationScheduler`(5m) | 고립 비트 해제 | `seat.released(RECONCILE)` |
 
-### 4.4 대기열 흐름 (SSE + Polling Fallback)
+### 3.4 대기열 흐름 (SSE + Polling Fallback)
 
 ```mermaid
 sequenceDiagram
@@ -305,7 +238,7 @@ sequenceDiagram
     end
 ```
 
-### 4.5 Kafka 토픽 토폴로지
+### 3.5 Kafka 토픽 토폴로지
 
 ```mermaid
 flowchart LR
@@ -337,27 +270,27 @@ flowchart LR
 
 ---
 
-## 5. 핵심 기술 포인트
+## 4. 핵심 기술 포인트
 
-### 5.1 Lua 비트마스크 segment 좌석락
+### 4.1 Lua 비트마스크 segment 좌석락
 
 - 한 노선이 N개 역이면 N-1개 segment. 좌석 점유를 `[startIdx, endIdx-1]` **비트 구간**으로 표현.
 - Redis 키 `sch:{scheduleId}:seat:{seatId}`에 Lua 스크립트로 **atomic** 비트 OR/검사 → 서로 겹치지 않는 구간은 같은 좌석도 동시 판매 가능 (예: 서울→대전 + 대전→부산).
 - Redisson `RLock`보다 segment 단위로 정밀하며, Lua는 SHA로 캐시되어 모든 인스턴스에서 일관 동작.
 
-### 5.2 3중 안전망
+### 4.2 3중 안전망
 
 1. **Lua atomic 비트락** — 1차 동시성 차단
 2. **DB 비관적 락(`SELECT ... FOR UPDATE`) + `existsOverlap`** — 커밋 시점 더블체크
 3. **ReconciliationScheduler(5분)** — Redis 비트 ↔ DB PAID 정합 보정
 
-### 5.3 멱등성 & 분산 트랜잭션 안전장치
+### 4.3 멱등성 & 분산 트랜잭션 안전장치
 
 - `Idempotency-Key` 인터셉터(Redis SETNX) → 예약/결제 재시도 안전
 - Kafka 컨슈머 상태 가드(`status != PENDING` 등) → 중복 이벤트 no-op
 - `payment-service`: Redisson lock + JPA `@Version` 낙관락 + DLT
 
-### 5.4 매크로·봇 방지 (Anti-Abuse)
+### 4.4 매크로·봇 방지 (Anti-Abuse)
 
 api-gateway의 **5개 `GlobalFilter`** + train-service 인터셉터가 협력하는 다층 방어. 모든 카운터는 **Redis 고정 윈도우** 기반이라 Gateway 수평 확장에도 일관되며, Redis 장애 시 graceful degradation(in-memory fallback / fail-open)으로 가용성을 유지합니다.
 
@@ -376,6 +309,62 @@ api-gateway의 **5개 `GlobalFilter`** + train-service 인터셉터가 협력하
 - **단계적 강도**: 봇 탐지는 즉시 차단이 아닌 `X-Suspicious` 플래그 → Rate Limit 한도 절반으로 연동해 **false positive 시에도 정상 트래픽을 완전히 막지 않음**.
 - **이중 방어**: 로그인은 `BruteForceFilter`(실패 카운터) + `RateLimitFilter`(요청 카운터)가 독립적으로 동작.
 - **정직한 한계**: CAPTCHA는 실 프로바이더(reCAPTCHA/hCaptcha) 미연동 **stub**이며, 시간 기반 + 일회성 토큰으로 단순 replay·매크로를 차단하는 수준입니다. 실 연동은 deferred.
+
+---
+
+## 5. 부하 테스트
+
+> Apache JMeter 1,000 동시접속 시나리오. 플랜: `docs/jmeter/xrail-load-test.jmx`
+
+### 5.1 목표 지표
+
+| 지표 | 목표 |
+|------|------|
+| 좌석 중복 예매(overbooking) | **0건** |
+| API p95 latency (예매 시점) | < 800ms |
+| API p50 latency (조회) | < 100ms |
+| error rate | < 1% |
+| 좌석 락 atomic 성공률 | 100% (100 스레드 동일 좌석 경합) |
+
+### 5.2 테스트 시나리오
+
+**시나리오 A — End-to-End 예매 플로우 (1,000 user)**
+```
+1. 로그인         POST /api/auth/login
+2. 스케줄 검색     GET  /api/schedules?departureStationId&arrivalStationId&date
+3. 좌석 조회       GET  /api/schedules/{id}/seats
+4. 대기열 진입     POST /api/queue/token → SSE/polling 활성화 토큰 획득
+5. 좌석 예매       POST /api/reservations  (X-Queue-Token, Idempotency-Key)
+6. 결제           POST /api/payments
+   → ramp-up: 60s, loop: 1, p95 < 800ms / error < 1% 검증
+```
+
+**시나리오 B — 동일 좌석 동시 경합 (100 thread)**
+```
+100개 스레드가 동일 schedule + 동일 seat + 동일 segment를 동시에 POST /api/reservations
+   → 기대: 정확히 1건 201, 나머지 99건 409(SEAT_ALREADY_TAKEN)
+   → overbooking = 0 검증 (3중 안전망 동작 확인)
+```
+
+**시나리오 C — 보상 경로 부하 (결제 실패/타임아웃)**
+```
+PAYMENT_MOCK_FAIL=true 환경에서 예매→결제 → payment.failed 보상 흐름
+   → seat.released(PAYMENT_FAILED) 발행 및 Redis 비트 해제율 검증
+```
+
+### 5.3 테스트 결과
+
+> 2026-07-04 로컬(Apple Silicon) 실측 — demo 오버라이드(rate-limit off · MockPG 실패율 0 · bcrypt 10) 기준, 7,000 샘플.
+
+| 시나리오 | 동시 사용자 | p50 | p95 | p99 | error rate | overbooking |
+|---------|-----------|-----|-----|-----|-----------|-------------|
+| A. E2E 예매 (7단계 플로우 전체) | 1,000 | 6ms | 67ms | 75ms | **0%** (0/7,000) | **0건** |
+| A-1. 예약 생성 단계만 | 1,000 | 7ms | **14ms** | 20ms | 0% | 0건 |
+| B. 동일 좌석 경합 (`demo/01-oversell.sh`) | 100 | — | — | — | 0% (201×1 · 409×99) | **0건** |
+
+**Zipkin 스크린샷**
+
+![Zipkin Trace](docs/images/zipkin-trace.png)
 
 ---
 
@@ -440,60 +429,67 @@ api-gateway의 **5개 `GlobalFilter`** + train-service 인터셉터가 협력하
 
 ---
 
-## 7. 부하 테스트
+## 7. 기술 스택
 
-> Apache JMeter 1,000 동시접속 시나리오. 플랜: `docs/jmeter/xrail-load-test.jmx`
+### 7.1 Backend
 
-### 7.1 목표 지표
-
-| 지표 | 목표 |
+| 영역 | 기술 |
 |------|------|
-| 좌석 중복 예매(overbooking) | **0건** |
-| API p95 latency (예매 시점) | < 800ms |
-| API p50 latency (조회) | < 100ms |
-| error rate | < 1% |
-| 좌석 락 atomic 성공률 | 100% (100 스레드 동일 좌석 경합) |
+| 언어 / 런타임 | Java 21 |
+| 프레임워크 | Spring Boot 3.4.12, Spring Cloud 2024.0.0 |
+| API Gateway | Spring Cloud Gateway (Reactive / WebFlux / Netty) |
+| Service Discovery | Netflix Eureka |
+| ORM / 쿼리 | Spring Data JPA, Hibernate, QueryDSL 5.1 |
+| DB 마이그레이션 | Flyway |
+| 인증 / 보안 | Spring Security, JJWT 0.12, OAuth2 Client, BCrypt(12 rounds) |
+| Rate Limiting | Bucket4j 8.10 + Redis Lua |
+| 서킷 브레이커 | Resilience4j (resilience4j-reactor) |
 
-### 7.2 테스트 시나리오
+### 7.2 Data / Messaging
 
-**시나리오 A — End-to-End 예매 플로우 (1,000 user)**
-```
-1. 로그인         POST /api/auth/login
-2. 스케줄 검색     GET  /api/schedules?departureStationId&arrivalStationId&date
-3. 좌석 조회       GET  /api/schedules/{id}/seats
-4. 대기열 진입     POST /api/queue/token → SSE/polling 활성화 토큰 획득
-5. 좌석 예매       POST /api/reservations  (X-Queue-Token, Idempotency-Key)
-6. 결제           POST /api/payments
-   → ramp-up: 60s, loop: 1, p95 < 800ms / error < 1% 검증
-```
+| 영역 | 기술 |
+|------|------|
+| RDB | MySQL 8 (Database per Service — `xrail_auth` / `xrail_train` / `xrail_payment` / `xrail_notify`) |
+| Cache / Lock | Redis + Redisson 3.41 (서비스별 logical DB 0~3) |
+| Message Broker | Apache Kafka 7.5 (Confluent) + Zookeeper |
+| 동시성 제어 | Redis Lua Script (segment 비트마스크), JPA `@Version`, Redisson Lock |
 
-**시나리오 B — 동일 좌석 동시 경합 (100 thread)**
-```
-100개 스레드가 동일 schedule + 동일 seat + 동일 segment를 동시에 POST /api/reservations
-   → 기대: 정확히 1건 201, 나머지 99건 409(SEAT_ALREADY_TAKEN)
-   → overbooking = 0 검증 (3중 안전망 동작 확인)
-```
+### 7.3 Observability
 
-**시나리오 C — 보상 경로 부하 (결제 실패/타임아웃)**
-```
-PAYMENT_MOCK_FAIL=true 환경에서 예매→결제 → payment.failed 보상 흐름
-   → seat.released(PAYMENT_FAILED) 발행 및 Redis 비트 해제율 검증
-```
+| 영역 | 기술 |
+|------|------|
+| 메트릭 | Micrometer + Prometheus |
+| 대시보드 | Grafana (5 패널 프로비저닝) |
+| 분산 트레이싱 | Brave + Zipkin (HTTP 자동 + Kafka `brave-instrumentation-kafka-clients`) |
+| 로깅 | Logback JSON, MDC(`traceId`/`spanId`/`userId`) |
 
-### 7.3 테스트 결과
+### 7.4 Frontend
 
-> 2026-07-04 로컬(Apple Silicon) 실측 — demo 오버라이드(rate-limit off · MockPG 실패율 0 · bcrypt 10) 기준, 7,000 샘플.
+| 영역 | 기술 |
+|------|------|
+| 프레임워크 | React 19 |
+| 빌드 | Vite 7 |
+| 언어 | TypeScript |
+| 라우팅 / HTTP | react-router-dom 7, Axios |
+| 실시간 | 브라우저 네이티브 EventSource (SSE) |
 
-| 시나리오 | 동시 사용자 | p50 | p95 | p99 | error rate | overbooking |
-|---------|-----------|-----|-----|-----|-----------|-------------|
-| A. E2E 예매 (7단계 플로우 전체) | 1,000 | 6ms | 67ms | 75ms | **0%** (0/7,000) | **0건** |
-| A-1. 예약 생성 단계만 | 1,000 | 7ms | **14ms** | 20ms | 0% | 0건 |
-| B. 동일 좌석 경합 (`demo/01-oversell.sh`) | 100 | — | — | — | 0% (201×1 · 409×99) | **0건** |
+### 7.5 Infra / Tooling
 
-**Grafana 대시보드 / Zipkin 스크린샷**
+| 영역 | 기술 |
+|------|------|
+| 컨테이너 | Docker, docker-compose (15 컨테이너) |
+| 빌드 | Gradle 8.10 (멀티모듈) |
+| 부하 테스트 | Apache JMeter |
 
-![Grafana Dashboard](docs/images/grafana-dashboard.png)
-![Zipkin Trace](docs/images/zipkin-trace.png)
+### 7.6 명시적 미채택 (의사결정)
+
+| 항목 | 사유 |
+|------|------|
+| WebSocket / STOMP | 단방향 알림은 SSE로 충분, polling fallback이 더 견고 |
+| Saga Orchestrator | Choreography로 서비스 의존도 ↓, `reservation_saga_log`로 디버깅 보완 |
+| Schema Registry / Avro | 1차는 JSON으로 단순화 |
+| Kubernetes | 1차는 docker-compose, K8s는 deferred |
+| SpringDoc OpenAPI | 수동 `API.md`로 충분 |
 
 ---
 
@@ -610,9 +606,3 @@ xrail-msa/
 | GET | `/api/queue/subscribe` | SSE 대기열 구독 | required |
 | GET | `/api/queue/status` | polling fallback | required |
 | GET | `/api/admin/stats` | 예약 통계 | ROLE_ADMIN |
-
----
-
-**개발자**: 김윤호 · rladbsgh27@gmail.com
-</content>
-</invoke>
