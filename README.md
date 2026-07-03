@@ -7,17 +7,19 @@
 
 - **아키텍처 다이어그램**: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
-**머니샷 3** &nbsp;
+**머니샷 3**
+
 1. **동시성 증명** — 동일 좌석 100스레드 동시 예매 → 성공 **정확히 1건** / 409 99건 / DB 티켓 1 / **오버부킹 0**
+
+   [![동시성 증명](docs/images/demo-oversell.png)](docs/images/demo-oversell.png)
+
 2. **대기열 SSE** — 1,000명 대기 → 3초마다 100명 승급, 순번이 **실시간 감소** → 입장 (AUTO/FORCE_ON 토글)
+
+   [![대기열 SSE](docs/images/demo-queue-sse.png)](docs/images/demo-queue-sse.png)
+
 3. **부하 회복** — 1,000 동접 → Grafana에서 **에러율 0% · 예약 p95 14ms · HikariCP 안정** / Zipkin에 6개 서비스 전 구간 계측
 
-- ① 오버부킹 0건  
-[![동시성 증명](docs/images/demo-oversell.png)](docs/images/demo-oversell.png) 
-- ② 대기열 SSE 실시간 순번 
-[![대기열 SSE](docs/images/demo-queue-sse.png)](docs/images/demo-queue-sse.png) 
-- ③ 1,000 동접 · 에러 0% 
-[![Grafana](docs/images/grafana-dashboard.png)](docs/images/grafana-dashboard.png) 
+   [![Grafana](docs/images/grafana-dashboard.png)](docs/images/grafana-dashboard.png)
 
 ---
 
@@ -381,7 +383,7 @@ api-gateway의 **5개 `GlobalFilter`** + train-service 인터셉터가 협력하
 
 > 실제 개발 중 발견·수정한 결함을 **문제 → 해결 → 결과** 3단계로 정리했습니다. (전체 목록: `docs/0603.md`)
 
-### 🔴 T-1. 타임존 불일치로 예약 내역이 빈 화면 + 결제 타이머 즉시 만료
+### T-1. 타임존 불일치로 예약 내역이 빈 화면 + 결제 타이머 즉시 만료
 
 - **문제**
   `ReservationResponse`의 `reservedAt`/`expiresAt`를 `LocalDateTime`(시간대 정보 없음)으로 직렬화. 서버는 UTC, 브라우저는 KST(UTC+9)로 파싱 → `new Date("2026-06-02T16:39:02")`가 9시간 앞당겨져 `isExpired()`가 즉시 `true` 반환. 예매 내역이 빈 화면으로 뜨고 결제 페이지 타이머가 00:00으로 시작.
@@ -390,7 +392,7 @@ api-gateway의 **5개 `GlobalFilter`** + train-service 인터셉터가 협력하
 - **결과**
   브라우저가 오프셋을 포함해 정확히 파싱 → 예매 내역 정상 표시, 결제 타이머 20분 정상 카운트다운. 알림 payload의 만료 시각 9시간 오차도 동시 해소.
 
-### 🔴 T-2. 중복 `payment.failed` 수신 시 다른 예약의 좌석 비트를 오해제 (더블부킹)
+### T-2. 중복 `payment.failed` 수신 시 다른 예약의 좌석 비트를 오해제 (더블부킹)
 
 - **문제**
   `handlePaymentCompleted`는 PAID 가드로 멱등했지만 `handlePaymentFailed`에는 가드가 없었음. 중복 `payment.failed` 이벤트 수신 시 `rollback_seat.lua`가 재실행되는데, **비트마스크에는 소유권 정보가 없어** 그 사이 같은 좌석을 점유한 *다른 예약*의 비트까지 해제 → 더블부킹으로 이어지는 실제 동시성 버그.
@@ -399,7 +401,7 @@ api-gateway의 **5개 `GlobalFilter`** + train-service 인터셉터가 협력하
 - **결과**
   중복/순서 역전 이벤트가 와도 보상 로직이 한 번만 실행 → 타 예약 비트 오해제 차단. Kafka 멱등 컨슈머 규칙(P4) 준수.
 
-### 🔴 T-3. 만료 스케줄러가 detached 엔티티를 수정 → 매 60초 무한 보상 루프
+### T-3. 만료 스케줄러가 detached 엔티티를 수정 → 매 60초 무한 보상 루프
 
 - **문제**
   `ReservationExpiryScheduler`가 트랜잭션 밖에서 조회한 **detached 엔티티**를 `@Transactional expireReservation()`에 그대로 전달. detached 상태라 `reservation.cancel()`이 dirty-checking으로 flush되지 않아 `status`가 PENDING으로 남음 → 다음 쿼리에 또 잡혀 **매 60초마다 rollback + `seat.released` 무한 반복**. 조회~처리 사이 PAID로 바뀐 예약을 취소하는 race도 존재.
@@ -408,7 +410,7 @@ api-gateway의 **5개 `GlobalFilter`** + train-service 인터셉터가 협력하
 - **결과**
   만료 처리가 1회만 수행되고 PAID 예약은 건너뜀 → 무한 `seat.released` 이벤트와 알림 노이즈 제거.
 
-### 🟠 T-4. UNIQUE 제약 위반 catch가 트랜잭션 전체를 rollback-only로 마킹 → DLT 적재
+### T-4. UNIQUE 제약 위반 catch가 트랜잭션 전체를 rollback-only로 마킹 → DLT 적재
 
 - **문제**
   `notification-service`가 단일 `@Transactional` 안에서 `NotificationLog`를 저장. 중복 이벤트로 `UNIQUE(correlation_id)` 위반이 나면 Hibernate가 트랜잭션을 **rollback-only**로 마킹 → catch해도 커밋 시점에 `UnexpectedRollbackException` → Kafka 재시도 후 DLT 적재. 멱등 처리(N1) 규칙이 실제 DB에서 깨졌고, Mockito mock 기반 단위 테스트라 미검출.
@@ -417,7 +419,7 @@ api-gateway의 **5개 `GlobalFilter`** + train-service 인터셉터가 협력하
 - **결과**
   중복 이벤트가 정상적으로 멱등 무시되고 DLT 오적재 제거. 실제 DB 통합 테스트로 회귀 검증.
 
-### 🟠 T-5. Reconciliation이 in-flight 예약의 비트를 phantom으로 오삭제
+### T-5. Reconciliation이 in-flight 예약의 비트를 phantom으로 오삭제
 
 - **문제**
   `create()`가 Lua 비트를 set한 뒤 **트랜잭션 커밋 전(티켓 미가시)** 에 `ReconciliationScheduler`가 돌면, DB에서 티켓을 못 찾아 phantom으로 오인 → 비트 제거 + 허위 `seat.released` 발행. 서브초 윈도우의 더블부킹 가능성과 알림 노이즈.
@@ -426,7 +428,7 @@ api-gateway의 **5개 `GlobalFilter`** + train-service 인터셉터가 협력하
 - **결과**
   정상 예약의 비트 오삭제 제거. 진짜 고립 비트만 정리.
 
-### 🔵 T-6. Docker 인프라 기동 실패 (healthcheck + Eureka zone)
+### T-6. Docker 인프라 기동 실패 (healthcheck + Eureka zone)
 
 - **문제**
   ① `discovery-server` healthcheck가 `curl -f` 사용 → Alpine JRE에 `curl` 미설치로 healthcheck 실패 → downstream 서비스 전체 기동 불가.
@@ -608,23 +610,6 @@ xrail-msa/
 | GET | `/api/queue/subscribe` | SSE 대기열 구독 | required |
 | GET | `/api/queue/status` | polling fallback | required |
 | GET | `/api/admin/stats` | 예약 통계 | ROLE_ADMIN |
-
----
-
-## 📌 마일스톤 진행 현황
-
-| 단계 | 내용 | 상태 |
-|------|------|------|
-| M0 | 부트스트랩 (Gradle 멀티모듈, docker-compose) | ✅ |
-| M1 | common-lib + auth-service (JWT/OAuth2) | ✅ |
-| M2 | api-gateway (JWT 검증, Rate Limit, 보안 필터) | ✅ |
-| M3 | train-service (Lua 좌석락, Saga) | ✅ |
-| M4 | queue-service (SSE + polling) | ✅ |
-| M5 | payment-service (Mock PG, DLT) | ✅ |
-| M6 | notification-service | ✅ |
-| M7 | 관측성 + Resilience4j | ✅ |
-| M8 | Frontend (React SPA) | ✅ |
-| M9 | JMeter 부하 테스트 플랜 | ✅ (실측 진행 예정) |
 
 ---
 
