@@ -129,6 +129,11 @@ class QueueTokenInterceptorTest {
     @Test
     void seatQuery_validToken_passesWithoutConsuming() throws Exception {
         String token = buildToken(USER_ID, "global", System.currentTimeMillis());
+        String hmacPart = token.substring(0, token.lastIndexOf('.'));
+
+        RBucket<Object> bucket = mock(RBucket.class);
+        when(redissonClient.getBucket("queue:token:used:" + hmacPart)).thenReturn(bucket);
+        when(bucket.isExists()).thenReturn(false);
 
         MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/schedules/5/seats");
         req.addHeader("X-Queue-Token", token);
@@ -137,10 +142,30 @@ class QueueTokenInterceptorTest {
 
         boolean result = interceptor.preHandle(req, res, null);
 
-        // 검증만 통과 — 토큰을 소비하지 않으므로 used 버킷 조회/예약 표시 없음
+        // §4.5: used 체크는 통과(미사용)하지만 좌석 조회는 소비하지 않는다 — attribute 세팅 없음
         assertThat(result).isTrue();
         assertThat(req.getAttribute("queueTokenUsedKey")).isNull();
-        verify(redissonClient, never()).getBucket(anyString());
+    }
+
+    @Test
+    void seatQuery_usedToken_returns401() throws Exception {
+        // §4.5: 슬롯 반환(reservation.created) 후 소비된 토큰으로 좌석 조회 시 INV-2를 지키기 위해 차단
+        String token = buildToken(USER_ID, "global", System.currentTimeMillis());
+        String hmacPart = token.substring(0, token.lastIndexOf('.'));
+
+        RBucket<Object> bucket = mock(RBucket.class);
+        when(redissonClient.getBucket("queue:token:used:" + hmacPart)).thenReturn(bucket);
+        when(bucket.isExists()).thenReturn(true);
+
+        MockHttpServletRequest req = new MockHttpServletRequest("GET", "/api/schedules/5/seats");
+        req.addHeader("X-Queue-Token", token);
+        req.addHeader("X-User-Id", String.valueOf(USER_ID));
+        MockHttpServletResponse res = new MockHttpServletResponse();
+
+        boolean result = interceptor.preHandle(req, res, null);
+
+        assertThat(result).isFalse();
+        assertThat(res.getStatus()).isEqualTo(401);
     }
 
     @Test

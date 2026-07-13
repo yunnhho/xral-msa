@@ -195,6 +195,9 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      kafka:
+        # 대기열 재설계(A): reservation.created 컨슈머가 생겨 Kafka 필요 — 없으면 기동 실패
+        condition: service_healthy
       discovery-server:
         condition: service_healthy
 

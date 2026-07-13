@@ -2,13 +2,15 @@
 # demo/02-queue.sh — 머니샷2 · 대기열 SSE 실시간 순번 감소.
 #
 # QUEUE_USERS(기본 1,000)명을 대기열에 등록 → 데모 유저 1명이 EventSource(SSE)로
-# 3초마다 100명씩 승급되며 순번이 줄어드는 것을 실시간 확인. AUTO/FORCE_ON 토글도 시연.
+# 순번이 줄어드는 것을 실시간 확인. AUTO/FORCE_ON 토글도 시연.
 #
 #   ./demo/02-queue.sh
 #   QUEUE_USERS=300 ./demo/02-queue.sh   # 더 빠른 촬영용
 #
-# 승급 로직: queue-service QueueScheduler(fixedDelay=3s) 가 waiting top-100 → active 승급 후
-# 대기 중 SSE emitter 전원에게 rank 이벤트를 push (신규 코드 아님, 기존 동작 트리거).
+# 승급 로직(대기열 재설계 A · 자리 기반): QueueScheduler(fixedDelay=3s)가 "빈 자리만큼만"
+# (min(batch 100, maxActive - active)) 승급한다. 슬롯이 반환되지 않으면 승급이 멈추므로,
+# 이 데모는 승급된 배경 대기자를 주기적으로 leave 처리(예약 완료 후 이탈 시뮬레이션)해
+# 자리를 반환시키며 순번 감소를 보여준다 — 반환→리필 사이클 자체가 시연 포인트.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -17,12 +19,13 @@ source "demo/lib.sh"
 need docker; need curl; need python3
 
 QUEUE_USERS="${QUEUE_USERS:-1000}"
-SCOPE="queue-demo"
+# 대기열 재설계(A) 이후 enter()는 scope 허용목록(phase-1: global만)을 강제한다 — 임의 scope 사용 불가.
+SCOPE="global"
 DEMO_UID="${DEMO_UID:-777}"
 BG_BASE=1000000                       # 배경 대기자 userId 오프셋(데모 유저와 충돌 방지)
 MAX_WATCH="${MAX_WATCH:-120}"         # SSE 관찰 최대 시간(초)
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"; kill "${CURL_PID:-0}" 2>/dev/null || true' EXIT
+trap 'rm -rf "$TMP"; kill "${CURL_PID:-0}" "${RELEASER_PID:-0}" 2>/dev/null || true' EXIT
 
 # ── 리셋 + 운영자 토글 시연 ────────────────────────────────────────
 step "대기열 초기화 & 운영자 모드 토글 시연"
@@ -50,8 +53,25 @@ enter_resp=$(curl -s -X POST "$QUEUE/api/queue/token" \
 START_RANK=$(printf '%s' "$enter_resp" | json_get data rank)
 ok "진입 순번: ${START_RANK:-?}번"
 
+# ── 배경 릴리서: 승급된 배경 대기자를 주기적으로 leave 처리 ────────
+# 자리 기반(A)에서는 슬롯 반환 없이는 승급이 멈춘다. 승급된 배경 유저가 "예약을 마치고
+# 이탈"하는 것을 leave 호출로 시뮬레이션해 자리를 반환시킨다(데모 유저 #777은 남겨둔다).
+releaser() {
+  while true; do
+    for uid in $(redis_cli "$REDIS_DB_QUEUE" ZRANGE "queue:active:set:$SCOPE" 0 -1 | tr -d '\r'); do
+      case "$uid" in (*[!0-9]*) continue ;; esac
+      [ "$uid" -ge "$BG_BASE" ] || continue
+      curl -s -o /dev/null -X POST "$QUEUE/api/queue/leave?scope=$SCOPE" -H "X-User-Id: $uid" &
+    done
+    wait
+    sleep 2
+  done
+}
+releaser &
+RELEASER_PID=$!
+
 # ── SSE 구독 → 실시간 순번 감소 관찰 ──────────────────────────────
-step "SSE 구독 (GET /api/queue/subscribe) · 3초마다 100명 승급"
+step "SSE 구독 (GET /api/queue/subscribe) · 슬롯 반환분만큼 승급(자리 기반)"
 FIFO="$TMP/sse"; mkfifo "$FIFO"
 curl -sN --max-time "$MAX_WATCH" "$QUEUE/api/queue/subscribe?scope=$SCOPE" \
   -H "X-User-Id: $DEMO_UID" > "$FIFO" &

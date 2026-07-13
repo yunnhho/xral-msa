@@ -328,10 +328,11 @@ sequenceDiagram
     Q-->>SPA: event: heartbeat (25s 주기)
     Q-->>SPA: event: rank data: {rank: 423, expectedWaitSeconds: 60}
 
-    Note over Q: @Scheduled(fixedDelay=3000)
-    Q->>RD: queue:scopes 순회 → 각 scope ZSet top 100 추출
-    Q->>RD: SETEX queue:active:global:{userId} 600s
-    Q->>RD: ZREM queue:waiting:global {userId}
+    Note over Q: @Scheduled(fixedDelay=3000) — capacity-aware 승급
+    Q->>RD: queue:scopes 순회 → scope별 promote.lua 실행
+    Note over RD: promote.lua (원자):<br/>active-set 만료분 ZREMRANGEBYSCORE 정리<br/>n = min(batchSize, maxActive - activeCount)<br/>waiting top-n → active-set ZADD(score=expiresAt) + ZREM
+    Q->>RD: (Java) SETEX queue:active:global:{userId} 600s (토큰 issuedAt=Lua now)
+    Q->>RD: (Java) SET queue:active:first:global:{userId} (세션 상한용)
     Q->>Q: emitter.send(event:active, data:{token, expiresAt})
     Q-->>SPA: event: active data: {token: "<HMAC>", expiresAt}
     Q->>Q: emitter.complete()
@@ -345,11 +346,32 @@ sequenceDiagram
     end
 ```
 
+**슬롯 반환(자리 기반 리필) — QUEUE_ADMISSION_REDESIGN.md(A)**
+
+```mermaid
+sequenceDiagram
+    participant T as train-service
+    participant K as Kafka
+    participant Q as queue-service
+    participant RD as Redis DB 2
+
+    T->>K: reservation.created (Outbox 경유, 예약 성공 시에만)
+    K->>Q: ReservationCreatedConsumer (groupId=queue-service)
+    Q->>RD: release.lua("global", userId, occurredAt)
+    Q->>RD: release.lua("schedule:{id}", userId, occurredAt) — scheduleId 있을 때만
+    Note over RD: release.lua (원자):<br/>버킷 부재 → skip<br/>issuedAt ≥ occurredAt - skewMargin(2s) → skip (ABA/클록 skew 가드)<br/>반환: ZREM active-set + DEL 버킷 + DEL first-키
+    Note over Q: 다음 스케줄러 tick이 빈 자리만큼 승급 (자리 기반 리필)
+```
+
+슬롯 생명주기: 승급 → ACTIVE → (① `reservation.created` 조기 반환 ② `POST /leave` ③ TTL 600s 만료 폴백) 중 하나로 반환. `enter()` 재발급은 세션 절대 상한(`session-cap-seconds`, 기본 600s)까지만 TTL 연장 — 초과 시 기존 토큰을 연장 없이 반환.
+
 **핵심 포인트**
-- 큐 토큰(X-Queue-Token) = `HMAC_SHA256(userId:scope:exp, secret)`. train-service의 `QueueTokenInterceptor`가 `POST /api/reservations`에서 검증.
+- 큐 토큰(X-Queue-Token) = `HMAC_SHA256(userId:scope:exp, secret)`. train-service의 `QueueTokenInterceptor`가 `POST /api/reservations`(1회 소비) + `GET .../seats`(검증 + used 체크)에서 검증.
+- **동시 인원 상한이 1차 제어 변수**: 승급은 "top 100 무조건"이 아니라 promote.lua가 `min(batchSize, maxActive - active)` 만큼만. 즉시입장 fast-path도 동일한 원자적 슬롯 확보 Lua를 거친다.
 - SSE heartbeat 25초로 proxy idle timeout(보통 60초) 회피.
 - Polling fallback의 응답 JSON은 SSE `event: rank` 페이로드와 동일 형식 → SPA 훅(`useQueueStatus`) 하나로 양 경로 지원.
-- `scope`는 1차에 `"global"` 고정. 차후 `"schedule:{id}"`로 트래픽 분산 가능.
+- `expectedWaitSeconds`는 최근 60s 반환(드레인)율 이동평균 기반. 표본 5건 미만(콜드스타트)이면 `ceil(rank/batchSize)*3` 폴백.
+- `scope`는 1차에 `"global"` 고정(`enter()` 허용목록 검증, 그 외 400). 차후 `"schedule:{id}"`로 트래픽 분산 가능.
 
 ---
 
@@ -587,6 +609,9 @@ flowchart TB
 | `xrail.queue.waiting.size{scope}` | Gauge | queue-service | 대기 인원 |
 | `xrail.queue.active.size{scope}` | Gauge | queue-service | 활성 인원 |
 | `xrail.queue.promotions.total` | Counter | queue-service | 누적 승급 수 |
+| `xrail.queue.releases.total{scope,reason}` | Counter | queue-service | 슬롯 반환 수 (reserved/left). `reason="left"` 급증은 leave 남용 신호로 경보 |
+| `xrail.queue.promote.skipped{scope}` | Counter | queue-service | 자리 없어 승급 0인 tick |
+| `xrail.queue.reissue.capped.total{scope}` | Counter | queue-service | 세션 상한 도달로 재발급 거부 |
 | `xrail.seat.lock.attempt.total` | Counter | train-service | Lua 호출 총수 |
 | `xrail.seat.lock.success.total` | Counter | train-service | Lua 성공 수 |
 | `xrail.seat.lock.conflict.total` | Counter | train-service | Lua 충돌 수 |

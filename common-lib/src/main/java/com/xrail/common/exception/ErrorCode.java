@@ -35,6 +35,7 @@ public enum ErrorCode {
     // Queue
     QUEUE_NOT_ACTIVE(HttpStatus.FORBIDDEN, "QUEUE_NOT_ACTIVE", "대기열 토큰이 누락되었거나 만료되었습니다."),
     QUEUE_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "QUEUE_TOKEN_INVALID", "유효하지 않은 큐 토큰입니다."),
+    INVALID_QUEUE_SCOPE(HttpStatus.BAD_REQUEST, "INVALID_QUEUE_SCOPE", "허용되지 않은 대기열 scope입니다."),
 
     // Gateway
     CAPTCHA_FAILED(HttpStatus.UNAUTHORIZED, "CAPTCHA_FAILED", "CAPTCHA 검증에 실패했습니다."),

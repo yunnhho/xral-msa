@@ -462,12 +462,18 @@ erDiagram
 | 키 패턴 | 타입 | TTL | 용도 |
 |---------|------|-----|------|
 | `queue:waiting:{scope}` | Sorted Set | 없음 | score=등록 epoch ms, member=userId |
-| `queue:active:{scope}:{userId}` | String | 10m | 활성 토큰 (값=HMAC token) |
+| `queue:active:{scope}:{userId}` | String | 10m | 활성 토큰 (값=HMAC token). **반환(삭제) 트리거 3가지**: ① `reservation.created` 수신(조기 반환 — release.lua가 ABA/skew 가드 후 원자 삭제) ② `POST /leave`(자발 이탈) ③ TTL 만료(no-show 폴백). TTL은 토큰 HMAC exp와 동일 값 유지 필수(단독 단축 시 INV-2 붕괴) |
+| `queue:active:set:{scope}` | Sorted Set | 없음(원소별 score=슬롯 만료 epoch ms) | 동시 active 인원 카운팅. member=userId. promote.lua·즉시입장 Lua가 `ZREMRANGEBYSCORE 0 now`로 만료분을 정리한 뒤 용량(maxActive) 판정. `reservation.created`/leave 시 ZREM |
+| `queue:active:first:{scope}:{userId}` | String | session-cap + active-ttl + 60s (기본 ≈21분) | 재발급 세션 절대 상한(§4.6)용 세션 최초 issuedAt(epoch ms). 새 세션 admit 시 **무조건 SET(덮어쓰기, SETNX 금지)**, 재발급 admit에서는 불변, 슬롯 반환(release.lua)·leave 시 DEL |
 | `queue:scopes` | Set | 없음 | 활성 scope 목록 (스케줄러 순회 대상) |
 | `queue:idem:{idemKey}` | String | 5m | `POST /api/queue/token` 중복 등록 차단 |
 | `queue:emitter:{scope}:{userId}` | (in-memory ConcurrentMap, **Redis 아님**) | 인스턴스 lifetime | SSE 연결 — 동일 userId 다중 인스턴스 보호는 Redis pub/sub로 추후 보완 |
 
 > 1차에서는 SSE emitter 분산이 비필수 (단일 queue-service 인스턴스 가정). 수평 확장 시 Redis pub/sub의 채널 `queue:promoted:{scope}`로 fanout 추가.
+
+**Lua 스크립트 키 사용 규칙 (대기열 진입 제어 A — QUEUE_ADMISSION_REDESIGN.md)**
+- `promote.lua`: `KEYS=[queue:waiting:{scope}, queue:active:set:{scope}]`, `ARGV=[maxActive, batchSize, now, expiresAt]`. 만료분 정리 → 빈 자리만큼만(top-n) waiting→active 원자 이동. 토큰 발급·버킷 SET은 Java(반환된 uid, issuedAt=ARGV now).
+- `release.lua`: `KEYS=[queue:active:{scope}:{uid}, queue:active:set:{scope}, queue:active:first:{scope}:{uid}]`, `ARGV=[uid, occurredAtMs, skewMarginMs]`. 버킷 부재 skip + ABA/클록 skew 가드 + ZREM/DEL 원자 실행.
 
 ### 5.4 DB 3 — payment-service
 

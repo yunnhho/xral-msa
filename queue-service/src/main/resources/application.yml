@@ -25,10 +25,13 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "com.xrail.common.kafka.event"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
 queue:
   hmac-secret: ${QUEUE_HMAC_SECRET}
-  # 3초마다 최대 100명 승급
+  # 3초마다 최대 100명 승급(빈 자리만큼만 — §4.1 capacity-aware)
   scheduler:
     delay-ms: 3000
     batch-size: 100
@@ -37,6 +40,10 @@ queue:
   # 입장 제어(AUTO 모드): 동시 active 인원이 이 값 미만이고 대기자가 없으면 즉시 입장(평시 우회)
   admission:
     max-active: 100
+    # §4.6: 재발급으로 무한 연장되는 것을 막는 세션 절대 상한(초). 총 세션 점유 ≈ 이 값 + active-ttl-seconds.
+    session-cap-seconds: 600
+    # §4.2: ABA 가드 클록 skew 마진(ms). issuedAt(queue 클록) < occurredAt(train 클록) - 이 값일 때만 반환.
+    release-skew-margin-ms: 2000
   sse:
     heartbeat-seconds: 25
     heartbeat-ms: 25000

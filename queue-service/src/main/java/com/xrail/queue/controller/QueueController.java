@@ -50,7 +50,7 @@ public class QueueController {
                 "scope", request.scope(),
                 "rank", result.rank(),
                 "totalWaiting", result.totalWaiting(),
-                "expectedWaitSeconds", estimateWait(result.rank()),
+                "expectedWaitSeconds", queueService.estimateWaitSeconds(request.scope(), result.rank()),
                 "status", "WAITING"
         )));
     }
@@ -75,7 +75,7 @@ public class QueueController {
                 "scope", scope,
                 "rank", status.rank(),
                 "totalWaiting", status.totalWaiting(),
-                "expectedWaitSeconds", estimateWait(status.rank()),
+                "expectedWaitSeconds", queueService.estimateWaitSeconds(scope, status.rank()),
                 "status", "WAITING"
         )));
     }
@@ -110,7 +110,7 @@ public class QueueController {
                         .data(Map.of(
                                 "rank", current.rank(),
                                 "totalWaiting", current.totalWaiting(),
-                                "expectedWaitSeconds", estimateWait(current.rank())
+                                "expectedWaitSeconds", queueService.estimateWaitSeconds(scope, current.rank())
                         )));
             }
         } catch (IOException e) {
@@ -128,9 +128,5 @@ public class QueueController {
 
         queueService.leave(userId, scope);
         return ResponseEntity.noContent().build();
-    }
-
-    private int estimateWait(int rank) {
-        return (int) Math.ceil((double) rank / 100) * 3;
     }
 }

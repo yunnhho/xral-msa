@@ -20,7 +20,8 @@ load_env
 
 THREADS="${THREADS:-100}"
 SEAT="${DEMO_SEAT:-1}"
-SCOPE="seat-demo"
+# 대기열 재설계(A) 이후 enter()는 scope 허용목록(phase-1: global만)을 강제한다 — 임의 scope 사용 불가.
+SCOPE="global"
 RUN_ID="$(now_ms)"                     # Idempotency-Key 매 실행 유니크(캐시 replay 방지)
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"; set_queue_mode AUTO >/dev/null 2>&1 || true' EXIT

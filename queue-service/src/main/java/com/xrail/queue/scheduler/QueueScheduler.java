@@ -99,16 +99,11 @@ public class QueueScheduler {
                         .data(Map.of(
                                 "rank", rank,
                                 "totalWaiting", total,
-                                "expectedWaitSeconds", estimateWaitSeconds(rank)
+                                "expectedWaitSeconds", queueService.estimateWaitSeconds(scope, rank)
                         )));
             } catch (IOException e) {
                 emitterRegistry.remove(scope, userId, emitter);
             }
         }
-    }
-
-    private int estimateWaitSeconds(int rank) {
-        // 3초마다 100명 승급 → 1명당 0.03초, rank명 대기 → ceil(rank/100) * 3초
-        return (int) Math.ceil((double) rank / batchSize) * 3;
     }
 }

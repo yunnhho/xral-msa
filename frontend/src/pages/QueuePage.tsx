@@ -99,10 +99,10 @@ export default function QueuePage() {
             <span style={{ background: C.accent, color: '#fff', borderRadius: 5, padding: '3px 10px', fontSize: 12, fontWeight: 800 }}>{schedule.trainType}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 20, fontWeight: 900 }}>{schedule.departureTime.slice(0, 5)}</span>
-              <span style={{ fontSize: 12, color: C.textMuted }}>{schedule.departureStation.name}</span>
+              <span style={{ fontSize: 12, color: C.textMuted, whiteSpace: 'nowrap' }}>{schedule.departureStation.name}</span>
               <span style={{ color: C.accent, fontWeight: 700 }}>→</span>
               <span style={{ fontSize: 20, fontWeight: 900 }}>{schedule.arrivalTime.slice(0, 5)}</span>
-              <span style={{ fontSize: 12, color: C.textMuted }}>{schedule.arrivalStation.name}</span>
+              <span style={{ fontSize: 12, color: C.textMuted, whiteSpace: 'nowrap' }}>{schedule.arrivalStation.name}</span>
             </div>
             <span style={{ marginLeft: 'auto', fontSize: 12, color: C.textMuted }}>{schedule.departureDate}</span>
           </div>

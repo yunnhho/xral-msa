@@ -70,10 +70,9 @@ public class QueueTokenInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // 좌석 조회는 검증만 — 토큰을 소비하지 않는다(이어지는 예약 POST에서 1회 소비).
-        if (isSeatQuery) return true;
-
-        // S5-D: 이미 사용된 토큰 차단 (일회성) — 예약 생성 경로에만 적용
+        // S5-D / §4.5: 이미 사용된 토큰 차단(일회성) — POST·GET 공통.
+        // 슬롯 반환(reservation.created) 후에도 소비된 토큰으로 좌석 조회가 HMAC 만료까지 통과하면
+        // INV-2(슬롯 반환 ⇒ 토큰 사용 불가)가 깨진다 — 좌석 조회도 used 체크를 거친다.
         String hmacPart = token.substring(0, token.lastIndexOf('.'));
         String usedKey = "queue:token:used:" + hmacPart;
         if (redissonClient.getBucket(usedKey).isExists()) {
@@ -82,7 +81,10 @@ public class QueueTokenInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // 토큰 정보를 afterCompletion에서 사용할 수 있도록 요청에 보관
+        // 좌석 조회는 검증만 — 토큰을 소비하지 않는다(이어지는 예약 POST에서 1회 소비).
+        if (isSeatQuery) return true;
+
+        // 토큰 정보를 afterCompletion에서 사용할 수 있도록 요청에 보관 (POST만 소비)
         request.setAttribute("queueTokenUsedKey", usedKey);
         return true;
     }
