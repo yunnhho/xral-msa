@@ -5,7 +5,7 @@
 ## 0. 한눈에 보는 요약
 
 - **제품 정체성**: 고동시성 기차 예매 단일 제품. 콘서트 도메인 폐기.
-- **아키텍처 패턴**: Spring Cloud Gateway + Eureka 기반 MSA. 6개 비즈니스 서비스 + 1개 디스커버리 + 1개 게이트웨이.
+- **아키텍처 패턴**: Spring Cloud Gateway + Eureka 기반 MSA. 5개 비즈니스 서비스 + 1개 디스커버리 + 1개 게이트웨이.
 - **분산 트랜잭션**: Saga Choreography (Kafka 이벤트 연쇄). 보상 주인은 train-service.
 - **동시성 핵심**: Redis Lua 비트마스크(segment 단위) + DB 더블체크 + 재정합화 스케줄러. payment-service는 JPA `@Version` + Redisson idempotency 버킷.
 - **인증**: Gateway에서 JWT 검증 → `X-User-Id/Role/Name` 헤더로 downstream 전달. OAuth2(Kakao/Naver) + Guest(NonMember) + Bucket4j 레이트리미트.
@@ -685,7 +685,7 @@ flowchart TB
 
 1. **인프라 먼저**: `docker compose up -d mysql redis zookeeper kafka prometheus grafana zipkin`. healthcheck 대기.
 2. **레지스트리**: `discovery-server`. `http://localhost:8761` 확인.
-3. **비즈니스 서비스 6개**: 병렬 기동. 각각 Eureka 등록 확인.
+3. **비즈니스 서비스 5개**: 병렬 기동. 각각 Eureka 등록 확인.
 4. **Gateway**: 마지막. `http://localhost:8080/actuator/health`.
 5. **Frontend**: `cd frontend && npm run dev`.
 

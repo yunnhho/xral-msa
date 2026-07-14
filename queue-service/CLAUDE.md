@@ -23,7 +23,7 @@
 - `SseEmitter` 생성 시 timeout을 명시적으로 설정 (`10분 = 600_000L`). timeout=0(무한) 사용 금지.
 - emitter 완료/타임아웃/에러 콜백에서 반드시 `ConcurrentMap`에서 제거. 메모리 누수 방지.
 - 동일 `userId`가 새 SSE 연결을 열면 기존 emitter를 `complete()` 처리 후 교체.
-- 1차에서는 단일 인스턴스 가정. 수평 확장 시 Redis pub/sub 필요 — 현재는 구현하지 않는다.
+- SSE 이벤트 전파는 Redis RTopic pub/sub(`queue:sse:notify`, `RedisQueueEventListener`)로 인스턴스 간 전달한다. 구독자가 없으면 로컬 emitter로 폴백 — 수평 확장 시에도 동작.
 
 ### Q4. SSE heartbeat
 - 25초마다 heartbeat 이벤트 전송. 이 값 변경 시 ARCHITECTURE.md §5와 동기화.

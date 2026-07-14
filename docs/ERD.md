@@ -150,7 +150,7 @@ erDiagram
 
 인덱스: `idx_refresh_user` ON `(user_id, expires_at)` — 만료 정리 + 사용자별 활성 토큰 조회.
 
-> **Redis 미러** (DB 0): `rt:{userId}` → `{tokenHash, expiresAt}`, TTL 14d. 검증 시 Redis 우선 lookup → miss 시 RDB fallback + Redis 복원.
+> **Redis 미러** (DB 0): `rt:{userId}` → `{tokenHash, expiresAt}`, TTL 14d. 검증 시 Redis 우선 lookup → miss 시 RDB fallback + Redis 복원. *(현재 구현: 쓰기 미러 + 무효화만 동작, 읽기 경로는 미구현 — rotate는 RDB 직접 조회)*
 
 ---
 

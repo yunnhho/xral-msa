@@ -73,7 +73,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 ## P1. 아키텍처 원칙
 
-- **6개 비즈니스 서비스 + 1 Gateway + 1 Discovery** 구조. 새 서비스 추가는 명시적 요청이 있을 때만.
+- **5개 비즈니스 서비스 + 1 Gateway + 1 Discovery** 구조. 새 서비스 추가는 명시적 요청이 있을 때만.
 - **Database per service**: 크로스 서비스 FK 절대 금지. 타 서비스 데이터는 `userId(Long)` + 스냅샷 컬럼으로 비정규화.
 - **Saga Choreography**: 오케스트레이터 없음. 보상 책임은 `train-service`. 이벤트 흐름 변경 시 `reservation_saga_log` 기록을 먼저 확인.
 - **Gateway 단일 인증**: downstream 서비스는 `X-User-Id / X-User-Role / X-User-Name` 헤더를 신뢰. 자체 JWT 검증 로직 추가 금지.

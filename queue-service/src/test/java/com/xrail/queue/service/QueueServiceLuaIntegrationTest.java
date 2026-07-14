@@ -106,7 +106,7 @@ class QueueServiceLuaIntegrationTest {
         ReflectionTestUtils.setField(service, "maxActive", 1);
         seedActive(SCOPE, System.currentTimeMillis() - 5_000, "999"); // 이미 만료된 잔존 원소
 
-        QueueService.EnterResult result = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus result = service.enter(1L, SCOPE, null);
 
         assertThat(result.status()).isEqualTo("ACTIVE"); // 만료분 정리 후 자리 있음 → FULL 오판 없음
     }
@@ -114,15 +114,15 @@ class QueueServiceLuaIntegrationTest {
     @Test
     void acquire_reissueAtActiveMax_notRefused() {
         ReflectionTestUtils.setField(service, "maxActive", 1);
-        QueueService.EnterResult first = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus first = service.enter(1L, SCOPE, null);
         assertThat(first.status()).isEqualTo("ACTIVE"); // 자리 1개 소진
 
         // 같은 유저 재진입(재발급) — 용량 체크를 타지 않아야 함(§4.4)
-        QueueService.EnterResult reissued = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus reissued = service.enter(1L, SCOPE, null);
         assertThat(reissued.status()).isEqualTo("ACTIVE");
 
         // 다른 유저는 자리 없음 → 대기
-        QueueService.EnterResult other = service.enter(2L, SCOPE, null);
+        QueueService.QueueStatus other = service.enter(2L, SCOPE, null);
         assertThat(other.status()).isEqualTo("WAITING");
     }
 
@@ -130,7 +130,7 @@ class QueueServiceLuaIntegrationTest {
 
     @Test
     void release_idempotent_secondCallIsNoop() {
-        QueueService.EnterResult entered = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus entered = service.enter(1L, SCOPE, null);
         long issuedAt = issuedAtOf(entered.queueToken());
         long occurredAt = issuedAt + 10_000; // skewMargin(2000ms) 밖 → 반환 조건 충족
 
@@ -154,7 +154,7 @@ class QueueServiceLuaIntegrationTest {
 
     @Test
     void release_abaSkewMargin_skipsWithinMargin() {
-        QueueService.EnterResult entered = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus entered = service.enter(1L, SCOPE, null);
         long issuedAt = issuedAtOf(entered.queueToken());
 
         // issuedAt ∈ [occurredAt - margin, occurredAt] → skip
@@ -196,12 +196,12 @@ class QueueServiceLuaIntegrationTest {
 
     @Test
     void reissue_withinCap_extendsScoreAndToken() throws InterruptedException {
-        QueueService.EnterResult first = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus first = service.enter(1L, SCOPE, null);
         Double firstScore = activeSet(SCOPE).getScore("1");
 
         // 토큰은 issuedAt(ms)에 결정적 — 같은 ms 안에 재발급되면 동일 토큰이라 flaky. 1ms 이상 경과 보장.
         Thread.sleep(2);
-        QueueService.EnterResult reissued = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus reissued = service.enter(1L, SCOPE, null);
 
         assertThat(reissued.status()).isEqualTo("ACTIVE");
         assertThat(reissued.queueToken()).isNotEqualTo(first.queueToken()); // 새 issuedAt → 다른 토큰
@@ -211,14 +211,14 @@ class QueueServiceLuaIntegrationTest {
 
     @Test
     void reissue_beyondCap_returnsExistingTokenWithoutExtension() {
-        QueueService.EnterResult first = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus first = service.enter(1L, SCOPE, null);
         Double originalScore = activeSet(SCOPE).getScore("1");
 
         // first-키를 cap(600s) 초과 시점으로 되돌려 cap 초과 상태를 시뮬레이션
         redissonClient.getBucket("queue:active:first:" + SCOPE + ":1", StringCodec.INSTANCE)
                 .set(String.valueOf(System.currentTimeMillis() - 700_000), Duration.ofSeconds(3600));
 
-        QueueService.EnterResult reissued = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus reissued = service.enter(1L, SCOPE, null);
 
         assertThat(reissued.status()).isEqualTo("ACTIVE");
         assertThat(reissued.queueToken()).isEqualTo(first.queueToken()); // 연장 없이 기존 토큰 그대로
@@ -228,14 +228,14 @@ class QueueServiceLuaIntegrationTest {
 
     @Test
     void reenter_afterRelease_startsNewSession() {
-        QueueService.EnterResult first = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus first = service.enter(1L, SCOPE, null);
         long issuedAt = issuedAtOf(first.queueToken());
         boolean released = service.releaseSlot(SCOPE, 1L, issuedAt + 10_000);
         assertThat(released).isTrue();
         assertThat(redissonClient.getBucket("queue:active:first:" + SCOPE + ":1", StringCodec.INSTANCE).isExists())
                 .isFalse(); // 반환 시 first-키도 삭제
 
-        QueueService.EnterResult second = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus second = service.enter(1L, SCOPE, null);
 
         assertThat(second.status()).isEqualTo("ACTIVE");
         assertThat(second.queueToken()).isNotEqualTo(first.queueToken());
@@ -246,14 +246,14 @@ class QueueServiceLuaIntegrationTest {
 
     @Test
     void reenter_withStaleLeftoverFirstKey_overwritesForNewSession() {
-        QueueService.EnterResult first = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus first = service.enter(1L, SCOPE, null);
         long staleFirstIssuedAt = System.currentTimeMillis() - 900_000; // TTL 만료/leave 후 잔존 가정
         redissonClient.getBucket("queue:active:first:" + SCOPE + ":1", StringCodec.INSTANCE)
                 .set(String.valueOf(staleFirstIssuedAt), Duration.ofSeconds(3600));
         // 버킷만 삭제(TTL 만료 시뮬레이션) — first-키는 잔존
         redissonClient.getBucket("queue:active:" + SCOPE + ":1", StringCodec.INSTANCE).delete();
 
-        QueueService.EnterResult second = service.enter(1L, SCOPE, null);
+        QueueService.QueueStatus second = service.enter(1L, SCOPE, null);
 
         assertThat(second.status()).isEqualTo("ACTIVE"); // 새 admission 경로(bucket 부재)
         String newFirstIssuedAt = redissonClient.<String>getBucket(
@@ -281,7 +281,7 @@ class QueueServiceLuaIntegrationTest {
                 ready.countDown();
                 try {
                     start.await();
-                    QueueService.EnterResult result = service.enter(userId, SCOPE, null);
+                    QueueService.QueueStatus result = service.enter(userId, SCOPE, null);
                     if ("ACTIVE".equals(result.status())) {
                         activeCount.incrementAndGet();
                     }

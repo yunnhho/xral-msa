@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 인메모리 SSE emitter 저장소.
- * 1차: 단일 인스턴스 가정. 수평 확장 시 Redis pub/sub으로 교체 필요.
+ * 인스턴스 간 이벤트 전파는 RedisQueueEventListener(RTopic pub/sub)가 담당한다.
  */
 @Component
 public class SseEmitterRegistry {

@@ -89,7 +89,7 @@ class QueueServiceTest {
         // Lua acquire: 자리 있음 → 1
         when(script.eval(any(RScript.Mode.class), anyString(), any(RScript.ReturnType.class), anyList(), any(), any(), any(), any())).thenReturn(1L);
 
-        QueueService.EnterResult result = service.enter(USER_ID, SCOPE, null);
+        QueueService.QueueStatus result = service.enter(USER_ID, SCOPE, null);
 
         assertThat(result.status()).isEqualTo("ACTIVE");
         assertThat(result.queueToken()).isEqualTo("hmac.123");
@@ -105,7 +105,7 @@ class QueueServiceTest {
         // Lua acquire: 자리 없음(FULL) → 0
         when(script.eval(any(RScript.Mode.class), anyString(), any(RScript.ReturnType.class), anyList(), any(), any(), any(), any())).thenReturn(0L);
 
-        QueueService.EnterResult result = service.enter(USER_ID, SCOPE, null);
+        QueueService.QueueStatus result = service.enter(USER_ID, SCOPE, null);
 
         assertThat(result.status()).isEqualTo("WAITING");
         verify(waitingSet).addIfAbsent(anyDouble(), eq(String.valueOf(USER_ID)));
@@ -118,7 +118,7 @@ class QueueServiceTest {
         when(waitingSet.size()).thenReturn(3); // 이미 대기자 있음 → 새치기 방지
         when(waitingSet.rank(String.valueOf(USER_ID))).thenReturn(3);
 
-        QueueService.EnterResult result = service.enter(USER_ID, SCOPE, null);
+        QueueService.QueueStatus result = service.enter(USER_ID, SCOPE, null);
 
         assertThat(result.status()).isEqualTo("WAITING");
         verify(waitingSet).addIfAbsent(anyDouble(), eq(String.valueOf(USER_ID)));
@@ -130,7 +130,7 @@ class QueueServiceTest {
         when(waitingSet.rank(String.valueOf(USER_ID))).thenReturn(0);
         lenient().when(waitingSet.size()).thenReturn(0);
 
-        QueueService.EnterResult result = service.enter(USER_ID, SCOPE, null);
+        QueueService.QueueStatus result = service.enter(USER_ID, SCOPE, null);
 
         assertThat(result.status()).isEqualTo("WAITING");
         verify(waitingSet).addIfAbsent(anyDouble(), eq(String.valueOf(USER_ID)));
@@ -142,7 +142,7 @@ class QueueServiceTest {
         setMode(QueueService.MODE_FORCE_OFF);
         // FORCE_OFF는 운영자 override — 용량 체크(Lua) 없이 직접 ZADD(표 5.9)
 
-        QueueService.EnterResult result = service.enter(USER_ID, SCOPE, null);
+        QueueService.QueueStatus result = service.enter(USER_ID, SCOPE, null);
 
         assertThat(result.status()).isEqualTo("ACTIVE");
         verify(activeUserBucket).set(eq("hmac.123"), any());
@@ -156,7 +156,7 @@ class QueueServiceTest {
         when(activeUserBucket.isExists()).thenReturn(true);
         when(firstKeyBucket.get()).thenReturn(String.valueOf(System.currentTimeMillis() - 10_000));
 
-        QueueService.EnterResult result = service.enter(USER_ID, SCOPE, null);
+        QueueService.QueueStatus result = service.enter(USER_ID, SCOPE, null);
 
         assertThat(result.status()).isEqualTo("ACTIVE");
         assertThat(result.queueToken()).isEqualTo("hmac.123");
@@ -176,7 +176,7 @@ class QueueServiceTest {
         when(activeUserBucket.get()).thenReturn("existing-hmac.123");
         when(activeUserBucket.remainTimeToLive()).thenReturn(30_000L);
 
-        QueueService.EnterResult result = service.enter(USER_ID, SCOPE, null);
+        QueueService.QueueStatus result = service.enter(USER_ID, SCOPE, null);
 
         assertThat(result.status()).isEqualTo("ACTIVE");
         assertThat(result.queueToken()).isEqualTo("existing-hmac.123");
@@ -190,7 +190,7 @@ class QueueServiceTest {
         when(activeUserBucket.isExists()).thenReturn(true);
         when(firstKeyBucket.get()).thenReturn(null);
 
-        QueueService.EnterResult result = service.enter(USER_ID, SCOPE, null);
+        QueueService.QueueStatus result = service.enter(USER_ID, SCOPE, null);
 
         assertThat(result.status()).isEqualTo("ACTIVE");
         verify(activeUserBucket).set(eq("hmac.123"), any());
@@ -205,7 +205,7 @@ class QueueServiceTest {
         when(waitingSet.rank(String.valueOf(USER_ID))).thenReturn(3);
         when(waitingSet.size()).thenReturn(6);
 
-        QueueService.EnterResult result = service.enter(USER_ID, SCOPE, null);
+        QueueService.QueueStatus result = service.enter(USER_ID, SCOPE, null);
 
         assertThat(result.status()).isEqualTo("WAITING");
         assertThat(result.rank()).isEqualTo(4);

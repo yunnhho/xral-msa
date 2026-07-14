@@ -74,7 +74,7 @@
 
 | # | 목표 |
 |---|------|
-| T1 | Spring Cloud Gateway + Eureka 기반 MSA, 6개 비즈니스 서비스 |
+| T1 | Spring Cloud Gateway + Eureka 기반 MSA, 5개 비즈니스 서비스 |
 | T2 | Saga Choreography (Kafka 이벤트 연쇄)로 분산 트랜잭션 처리 |
 | T3 | Lua 비트마스크 + DB 더블체크 + 재정합화 스케줄러 3중 안전망 |
 | T4 | 인증은 Gateway에서 단일 검증, downstream은 헤더 신뢰 |

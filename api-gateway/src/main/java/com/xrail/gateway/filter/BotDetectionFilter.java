@@ -6,7 +6,6 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -26,13 +25,11 @@ public class BotDetectionFilter implements GlobalFilter, Ordered {
             "python-requests", "curl/", "go-http-client", "apache-httpclient",
             "scrapy", "mechanize", "wget/", "libwww-perl"
     );
-    private static final List<String> EXEMPT_PATHS = List.of("/actuator/health");
-    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
-        if (EXEMPT_PATHS.stream().anyMatch(p -> PATH_MATCHER.match(p, path))) {
+        if ("/actuator/health".equals(path)) {
             return chain.filter(exchange);
         }
 

@@ -103,7 +103,7 @@ public class QueueService {
      * 대기열 진입. idempotencyKey로 중복 차단.
      * @return 등록된 rank (1-based), 이미 active이면 -1
      */
-    public EnterResult enter(Long userId, String scope, String idempotencyKey) {
+    public QueueStatus enter(Long userId, String scope, String idempotencyKey) {
         validateScope(scope);
         registerActiveGauge(scope);
 
@@ -122,7 +122,7 @@ public class QueueService {
             return admitBypassingCapacity(userId, scope);
         }
         if (MODE_AUTO.equals(mode) && getWaitingSize(scope) == 0) {
-            EnterResult admitted = tryAdmit(userId, scope);
+            QueueStatus admitted = tryAdmit(userId, scope);
             if (admitted != null) {
                 return admitted;
             }
@@ -135,7 +135,7 @@ public class QueueService {
             boolean isNew = redissonClient.getBucket(idemKey).setIfAbsent(userId.toString(), Duration.ofMinutes(5));
             if (!isNew) {
                 // 이미 대기 중인 경우 현재 rank 반환
-                return buildWaitingResult(userId, scope);
+                return buildWaitingStatus(userId, scope);
             }
         }
 
@@ -150,7 +150,7 @@ public class QueueService {
 
         // scope 태그 없이 등록하면 모든 scope가 한 게이지로 합쳐져 최초 등록된 scope의 크기만 보인다.
         meterRegistry.gauge("xrail.queue.waiting.size", Tags.of("scope", scope), waitingSet, RScoredSortedSet::size);
-        return buildWaitingResult(userId, scope);
+        return buildWaitingStatus(userId, scope);
     }
 
     public QueueStatus getStatus(Long userId, String scope) {
@@ -330,7 +330,7 @@ public class QueueService {
     }
 
     /** FORCE_OFF: 운영자 override로 용량 체크 없이 즉시 입장(표 5.9, INV-1 예외로 문서화된 리스크). */
-    private EnterResult admitBypassingCapacity(Long userId, String scope) {
+    private QueueStatus admitBypassingCapacity(Long userId, String scope) {
         long issuedAt = System.currentTimeMillis();
         long expiresAt = issuedAt + (long) activeTtlSeconds * 1000;
         activeSet(scope).add(expiresAt, userId.toString());
@@ -338,7 +338,7 @@ public class QueueService {
     }
 
     /** AUTO: §4.4 원자적 슬롯 확보. 자리 없으면 null(호출측이 대기열 등록으로 폴백). */
-    private EnterResult tryAdmit(Long userId, String scope) {
+    private QueueStatus tryAdmit(Long userId, String scope) {
         long issuedAt = System.currentTimeMillis();
         long expiresAt = issuedAt + (long) activeTtlSeconds * 1000;
         if (!tryAcquireSlot(scope, userId, issuedAt, expiresAt)) {
@@ -359,7 +359,7 @@ public class QueueService {
     }
 
     /** 새 세션 확정: 토큰 발급 + 버킷 SET + waiting 정리 + first-키 SET(§4.6, 무조건 덮어쓰기). */
-    private EnterResult finishAdmit(Long userId, String scope, long issuedAt, long expiresAt) {
+    private QueueStatus finishAdmit(Long userId, String scope, long issuedAt, long expiresAt) {
         String token = tokenService.generateToken(userId, scope, issuedAt);
         redissonClient.getBucket(activeKeyName(scope, userId), StringCodec.INSTANCE)
                 .set(token, Duration.ofSeconds(activeTtlSeconds));
@@ -367,14 +367,14 @@ public class QueueService {
         setFirstKey(scope, userId, issuedAt);
 
         meterRegistry.counter("xrail.queue.immediate.total").increment();
-        return EnterResult.active(token, expiresAt);
+        return QueueStatus.active(token, expiresAt);
     }
 
     /**
      * §4.6 재발급: cap 이내면 TTL/score를 연장, cap 초과면 기존 토큰을 연장 없이 그대로 반환한다.
      * 재발급은 §4.4의 용량 체크를 타지 않는다(기존 점유자의 ZADD는 score 갱신일 뿐 카운트가 늘지 않음).
      */
-    private EnterResult reissue(Long userId, String scope) {
+    private QueueStatus reissue(Long userId, String scope) {
         long now = System.currentTimeMillis();
         Long firstIssuedAt = getFirstIssuedAt(scope, userId);
 
@@ -386,7 +386,7 @@ public class QueueService {
             String existingToken = bucket.get();
             long remainMs = bucket.remainTimeToLive();
             long expiresAt = now + Math.max(remainMs, 0);
-            return EnterResult.active(existingToken, expiresAt);
+            return QueueStatus.active(existingToken, expiresAt);
         }
 
         // cap 이내(또는 first-키 잔존 없음 → 비정상 상태를 새 세션으로 간주): 정상 재발급
@@ -403,7 +403,7 @@ public class QueueService {
             // cap이 무의미해진다.
             setFirstKey(scope, userId, issuedAt);
         }
-        return EnterResult.active(token, expiresAt);
+        return QueueStatus.active(token, expiresAt);
     }
 
     private Long getFirstIssuedAt(String scope, Long userId) {
@@ -425,12 +425,6 @@ public class QueueService {
         while ((head = timestamps.peekFirst()) != null && head < cutoff) {
             timestamps.pollFirst();
         }
-    }
-
-    private EnterResult buildWaitingResult(Long userId, String scope) {
-        int rank = getWaitingRank(userId, scope);
-        int total = getWaitingSize(scope);
-        return EnterResult.waiting(rank, total);
     }
 
     private QueueStatus buildWaitingStatus(Long userId, String scope) {
@@ -468,15 +462,6 @@ public class QueueService {
     }
 
     // ===== inner result types =====
-
-    public record EnterResult(String status, int rank, int totalWaiting, String queueToken, long expiresAt) {
-        static EnterResult waiting(int rank, int total) {
-            return new EnterResult("WAITING", rank, total, null, 0);
-        }
-        static EnterResult active(String token, long expiresAt) {
-            return new EnterResult("ACTIVE", 0, 0, token, expiresAt);
-        }
-    }
 
     public record QueueStatus(String status, int rank, int totalWaiting, String queueToken, long expiresAt) {
         static QueueStatus waiting(int rank, int total) {

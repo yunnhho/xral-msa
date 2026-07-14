@@ -8,7 +8,6 @@ import org.springframework.core.Ordered;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -32,7 +31,6 @@ public class CaptchaStubFilter implements GlobalFilter, Ordered {
             "/api/auth/signup",
             "/api/queue/token"
     );
-    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
     private static final long MAX_AGE_MS = 30_000L;
 
     private final ReactiveStringRedisTemplate redisTemplate;
@@ -44,8 +42,7 @@ public class CaptchaStubFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
-        boolean requiresCaptcha = CAPTCHA_PATHS.stream().anyMatch(p -> PATH_MATCHER.match(p, path));
-        if (!requiresCaptcha) {
+        if (!CAPTCHA_PATHS.contains(path)) {
             return chain.filter(exchange);
         }
 

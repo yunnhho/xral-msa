@@ -2,7 +2,7 @@
 
 > Redis Lua 비트마스크 기반 segment 좌석락 · Saga Choreography 분산 트랜잭션 · SSE 대기열을 갖춘 MSA 포트폴리오 프로젝트
 
-**1,000 동시접속 환경에서 좌석 중복 예매 0건**을 목표로, 기차 예매 도메인을 **6개 비즈니스 서비스 + Gateway + Discovery**로 분리하고 이벤트 기반으로 통합한 production-grade 예매 플랫폼입니다.
+**1,000 동시접속 환경에서 좌석 중복 예매 0건**을 목표로, 기차 예매 도메인을 **5개 비즈니스 서비스 + Gateway + Discovery**로 분리하고 이벤트 기반으로 통합한 production-grade 예매 플랫폼입니다.
 
 **머니샷 3**
 

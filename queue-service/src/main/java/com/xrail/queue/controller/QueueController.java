@@ -37,22 +37,8 @@ public class QueueController {
             @RequestHeader(value = Headers.IDEMPOTENCY_KEY, required = false) String idempotencyKey,
             @Valid @RequestBody QueueEnterRequest request) {
 
-        QueueService.EnterResult result = queueService.enter(userId, request.scope(), idempotencyKey);
-        if ("ACTIVE".equals(result.status())) {
-            return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                    "scope", request.scope(),
-                    "status", "ACTIVE",
-                    "queueToken", result.queueToken(),
-                    "expiresAt", Instant.ofEpochMilli(result.expiresAt()).toString()
-            )));
-        }
-        return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                "scope", request.scope(),
-                "rank", result.rank(),
-                "totalWaiting", result.totalWaiting(),
-                "expectedWaitSeconds", queueService.estimateWaitSeconds(request.scope(), result.rank()),
-                "status", "WAITING"
-        )));
+        QueueService.QueueStatus result = queueService.enter(userId, request.scope(), idempotencyKey);
+        return ResponseEntity.ok(ApiResponse.ok(statusBody(request.scope(), result)));
     }
 
     @Operation(summary = "대기열 상태 폴링",
@@ -62,22 +48,7 @@ public class QueueController {
             @RequestHeader(Headers.USER_ID) Long userId,
             @RequestParam(defaultValue = "global") String scope) {
 
-        QueueService.QueueStatus status = queueService.getStatus(userId, scope);
-        if ("ACTIVE".equals(status.status())) {
-            return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                    "scope", scope,
-                    "status", "ACTIVE",
-                    "queueToken", status.queueToken(),
-                    "expiresAt", Instant.ofEpochMilli(status.expiresAt()).toString()
-            )));
-        }
-        return ResponseEntity.ok(ApiResponse.ok(Map.of(
-                "scope", scope,
-                "rank", status.rank(),
-                "totalWaiting", status.totalWaiting(),
-                "expectedWaitSeconds", queueService.estimateWaitSeconds(scope, status.rank()),
-                "status", "WAITING"
-        )));
+        return ResponseEntity.ok(ApiResponse.ok(statusBody(scope, queueService.getStatus(userId, scope))));
     }
 
     @Operation(summary = "SSE 구독",
@@ -129,4 +100,22 @@ public class QueueController {
         queueService.leave(userId, scope);
         return ResponseEntity.noContent().build();
     }
+
+    /** ACTIVE/WAITING 공통 응답 바디 — enter/status 동일 포맷. */
+    private Map<String, Object> statusBody(String scope, QueueService.QueueStatus s) {
+        if ("ACTIVE".equals(s.status())) {
+            return Map.of(
+                    "scope", scope,
+                    "status", "ACTIVE",
+                    "queueToken", s.queueToken(),
+                    "expiresAt", Instant.ofEpochMilli(s.expiresAt()).toString());
+        }
+        return Map.of(
+                "scope", scope,
+                "rank", s.rank(),
+                "totalWaiting", s.totalWaiting(),
+                "expectedWaitSeconds", queueService.estimateWaitSeconds(scope, s.rank()),
+                "status", "WAITING");
+    }
+
 }

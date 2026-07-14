@@ -120,7 +120,7 @@ public class ReservationService {
         }
 
         // 3. Compute price
-        long price = calculatePrice(schedule, startIdx, endIdx, request.seatIds().size());
+        long price = calculatePrice(startIdx, endIdx, request.seatIds().size());
 
         // 4. DB INSERT reservation + tickets
         LocalDateTime now = LocalDateTime.now();
@@ -355,7 +355,7 @@ public class ReservationService {
         lockedSeats.forEach(seatId -> luaScriptService.rollback(scheduleId, seatId, startIdx, endIdx));
     }
 
-    private long calculatePrice(Schedule schedule, int startIdx, int endIdx, int seatCount) {
+    private long calculatePrice(int startIdx, int endIdx, int seatCount) {
         return BASE_PRICE_PER_SEGMENT * (endIdx - startIdx) * seatCount;
     }
 }
